@@ -162,7 +162,7 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
     if (sz < 0 && errno != EAGAIN && !interrupt_occured) {
         ret.first = ERROR;
         return ret;
-    } else if (sz < 0 && errno == EAGAIN || interrupt_occured) {
+    } else if (sz < 0) {
         ret.first = END_OF_STREAM;
         return ret;
     }

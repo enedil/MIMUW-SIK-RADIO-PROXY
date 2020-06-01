@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unistd.h>
+#include <mutex>
 
 enum ChunkType {
     AUDIO = STDOUT_FILENO,
