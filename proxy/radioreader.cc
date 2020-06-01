@@ -135,7 +135,7 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
     if (progress == metaint) {
         progress = 0;
         if (metadata) {
-            ret.first = METADATA;
+            ret.first = ICY_METADATA;
             uint8_t metadataLength = 0;
             auto r = read(fd, &metadataLength, sizeof(metadataLength));
             if (r < 0 && errno != EINTR)
@@ -168,7 +168,7 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
     }
     progress += static_cast<size_t>(sz);
     buffer.resize(static_cast<size_t>(sz));
-    ret.first = AUDIO;
+    ret.first = ICY_AUDIO;
     return ret;
 }
 

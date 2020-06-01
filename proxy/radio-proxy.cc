@@ -13,8 +13,8 @@ static void partA(RadioReader& reader) {
         ChunkType type = p.first;
         const std::vector<uint8_t>& buf = p.second;
         switch(type) {
-        case AUDIO:
-        case METADATA:
+        case ICY_AUDIO:
+        case ICY_METADATA:
             if (write(type, buf.data(), buf.size()) != buf.size()) {
                 exit(EXIT_FAILURE);
             }
@@ -27,9 +27,6 @@ static void partA(RadioReader& reader) {
     }
 }
 
-static void partB(RadioReader& reader, RadioSender& sender) {
-}
-
 int main(int argc, char* const argv[]) {
     ProxyArguments args(argc, argv);
     RadioReader reader(args.host, args.resource, args.port, args.timeout, args.metadata);
@@ -40,6 +37,6 @@ int main(int argc, char* const argv[]) {
         partA(reader);
     } else {
         RadioSender sender(args.udpport.value(), args.udpaddr, args.udptimeout);
-        //partB(reader);
+        return sender.sendrecvLoop(reader);
     }
 }
