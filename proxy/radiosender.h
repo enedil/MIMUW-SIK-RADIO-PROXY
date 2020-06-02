@@ -9,33 +9,49 @@
 #include <mutex>
 #include <vector>
 #include <thread>
+#include "radioreader.h"
 
 namespace std {
     template<> struct hash<sockaddr_in> {
-        std::size_t operator()(sockaddr_in const& addr) {
+        std::size_t operator()(sockaddr_in const& addr) const {
             auto s_addr = addr.sin_addr.s_addr;
             auto port = addr.sin_port;
             static_assert(sizeof(s_addr) + sizeof(port) <= sizeof(std::size_t));
             return (s_addr << (CHAR_BIT * sizeof(port))) | port;
         }
     };
+    template<> struct equal_to<sockaddr_in> {
+        bool operator()(sockaddr_in const& lhs, sockaddr_in const& rhs) const {
+            return lhs.sin_addr.s_addr == rhs.sin_addr.s_addr && lhs.sin_port == rhs.sin_port;
+        }
+    };
 }
 
+enum MsgType {
+    DISCOVER = 1,
+    IAM = 2,
+    KEEPALIVE = 3,
+    AUDIO = 4,
+    METADATA = 6
+};
+
 class RadioSender {
-    using time_point = std::chrono::system_clock::time_point;
-    using Buffer = std::vector<uint8_t>;
+    using clock = std::chrono::system_clock;
+    using time_point = clock::time_point;
 public:
     RadioSender(unsigned port, std::optional<std::string> broadcastAddr, unsigned timeout);
+    int sendrecvLoop(RadioReader& reader);
     ~RadioSender();
-    void sendMusic(Buffer const& data);
-    void sendMetadata(Buffer const& data);
 private:
-    ip_mreq ip_mreq;
+    ip_mreq ip_mreq_;
     unsigned timeout;
     int sock;
     bool isBroadcasted;
     std::mutex clientsMutex;
     std::unordered_map<sockaddr_in, time_point> clients;
-    std::thread controllerThread;
-    void sendToAllClients(Buffer const& buffer);
+    void controller(RadioReader& reader);
+    void sendToAClient(msghdr msghdr, sockaddr_in address);
+    void sendToAllClients(msghdr msghdr);
+    void sendData(MsgType type, std::vector<uint8_t> const& data, std::optional<sockaddr_in> address);
+    void sendData(MsgType type, uint8_t const* begin, uint8_t const* end, std::optional<sockaddr_in> address);
 };

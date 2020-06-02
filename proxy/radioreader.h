@@ -6,8 +6,8 @@
 #include <mutex>
 
 enum ChunkType {
-    AUDIO = STDOUT_FILENO,
-    METADATA = STDERR_FILENO,
+    ICY_AUDIO = STDOUT_FILENO,
+    ICY_METADATA = STDERR_FILENO,
     END_OF_STREAM,
     ERROR
 };
