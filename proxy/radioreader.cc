@@ -117,7 +117,7 @@ bool RadioReader::parseHeaders(const std::string& headers) {
     } else if (icymetaint != icyOptions.end()) {
         metaint = std::stoul(icymetaint->second);
     } else {
-        metaint = 70000;//1<<12;
+        metaint = (1<<16)-500; //todo change magic
     }
     return true;
 }

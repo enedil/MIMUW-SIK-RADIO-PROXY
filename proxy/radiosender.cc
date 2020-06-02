@@ -13,7 +13,11 @@
 #include <vector>
 #include <cstdlib>
 #include <iostream>
+#include <array>
+#include <fstream>
 #include "radiosender.h"
+
+static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size);
 
 RadioSender::RadioSender(unsigned port, std::optional<std::string> broadcastAddr, unsigned timeout) :
     timeout(timeout), isBroadcasted(broadcastAddr) {
@@ -50,35 +54,20 @@ RadioSender::~RadioSender() {
 
 class RAIIMsghdr {
 public:
-    RAIIMsghdr(uint8_t const* begin, uint8_t const* end, MsgType type, size_t packetSize = 1400);
+    RAIIMsghdr(uint8_t const* begin, uint8_t const* end, MsgType type);
     msghdr get();
 private:
-    std::vector<iovec> scattergather_array;
-    std::vector<std::vector<uint8_t>> parts;
+    std::array<iovec, 2> scattergather_array;
+    std::array<uint16_t, 2> header;
 };
 
-RAIIMsghdr::RAIIMsghdr(uint8_t const* begin, uint8_t const* end, MsgType type, size_t packetSize) {
+RAIIMsghdr::RAIIMsghdr(uint8_t const* begin, uint8_t const* end, MsgType type) {
     assert(end >= begin);
-    std::size_t headerSize = 2*sizeof(uint16_t);
-    uint16_t type_ = htons(static_cast<uint16_t>(type));
-
-    size_t packetCount = (static_cast<size_t>(end - begin) + packetSize - headerSize - 1) / (packetSize - headerSize);
-    size_t chunkLength = packetSize - headerSize;
-    scattergather_array.resize(packetCount);
-    parts.resize(packetCount);
-    std::cerr << "end-begin=" << end - begin << " packetCount=" << packetCount << " chunkLength=" << chunkLength  << "\n";
-    for (size_t i = 0; i < packetCount; ++i) {
-        parts[i].resize(packetSize);
-        if (static_cast<size_t>(end - begin) < chunkLength)
-            parts[i].resize(headerSize + static_cast<size_t>(end - begin));
-        std::copy(begin, std::min(begin + chunkLength, end), std::begin(parts[i]) + headerSize);
-        reinterpret_cast<uint16_t*>(parts[i].data())[0] = type_;
-        reinterpret_cast<uint16_t*>(parts[i].data())[1] = htons(parts[i].size() - headerSize);
-        scattergather_array[i].iov_base = parts[i].data();
-        scattergather_array[i].iov_len = parts[i].size();
-        std::cerr << "iov_len=" << scattergather_array[i].iov_len << ", size=" << parts[i].size() - headerSize << "\n";
-        begin += chunkLength;
-    }
+    header = encodeHeader(type, end-begin);
+    scattergather_array[0].iov_base = header.data();
+    scattergather_array[0].iov_len = header.size() * sizeof(uint16_t);
+    scattergather_array[1].iov_base = (void*)(begin);
+    scattergather_array[1].iov_len = end - begin;
 }
 
 msghdr RAIIMsghdr::get() {
@@ -89,12 +78,11 @@ msghdr RAIIMsghdr::get() {
     return ret;
 }
 
-static std::vector<uint8_t> encodeTypeHeader(MsgType type, size_t size) {
-    std::size_t headerSize = 2*sizeof(uint16_t);
+static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size) {
     assert(size < std::numeric_limits<uint16_t>::max());
-    std::vector<uint8_t> output(headerSize);
-    *reinterpret_cast<uint16_t*>(output.data()) = htons(static_cast<uint16_t>(type));
-    *reinterpret_cast<uint16_t*>(output.data() + sizeof(uint16_t)) = htons(size);
+    std::array<uint16_t, 2> output;
+    output[0] = htons(static_cast<uint16_t>(type));
+    output[1] = htons(size);
     return output;
 }
 
@@ -117,7 +105,7 @@ void RadioSender::sendToAClient(msghdr msghdr, sockaddr_in address) {
     if (r < 0) {
         throw std::system_error { std::error_code(errno, std::system_category()), "sendmsg" };
     }
-    std::cerr << "sent " << r << "bytes\n";
+    //std::cerr << "sent " << r << "bytes\n";
 
 }
 
@@ -125,10 +113,10 @@ void RadioSender::sendToAllClients(msghdr msghdr) {
     std::lock_guard<std::mutex> lock(clientsMutex);
     auto clients_copy = clients;
     for (auto& client : clients) {
-        std::cerr << "Client: [" << ntohl(client.first.sin_addr.s_addr) << "," << ntohs(client.first.sin_port) << "]\n";
+        //std::cerr << "Client: [" << ntohl(client.first.sin_addr.s_addr) << "," << ntohs(client.first.sin_port) << "]\n";
         auto now = clock::now();
         auto diff = std::chrono::duration_cast<std::chrono::seconds>(now - client.second);
-        std::cerr << "diff=" << diff.count() << "\n";
+        //std::cerr << "diff=" << diff.count() << "\n";
         if (diff.count() > timeout) {
             clients_copy.erase(client.first);
         } else {
@@ -142,10 +130,12 @@ int RadioSender::sendrecvLoop(RadioReader& reader) {
     std::thread controller {[&]() { this->controller(reader); }};
     int ret = -1;
     bool loop = true;
+    std::ofstream logging("output");
     while (loop) {
         auto [type, buf] = reader.readChunk();
         switch(type) {
         case ICY_AUDIO:
+            logging.write((char*)buf.data(), buf.size());
             sendData(AUDIO, buf, std::nullopt);
             break;
         case ICY_METADATA:
