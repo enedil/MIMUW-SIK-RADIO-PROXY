@@ -1,16 +1,15 @@
+#include <memory>
+#include <mutex>
+#include <vector>
 #define _GNU_SOURCE
 #include <cstring>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <system_error>
+#include "error.h"
 #include "message.h"
 #include "telnetserver.h"
-
-static void syserr(char const* reason) {
-    throw std::system_error { std::error_code(errno, std::system_category()), reason };
-}
 
 TelnetServer::TelnetServer(unsigned port) {
     sockaddr_in localAddress;
@@ -23,6 +22,7 @@ TelnetServer::TelnetServer(unsigned port) {
         syserr("socket() of listener");
     if (bind(listenerSock, reinterpret_cast<const sockaddr*>(&localAddress), sizeof(localAddress)) < 0)
         syserr("bind()");
+    keepAlive = std::make_unique<KeepAlive>(listenerSock);
 }
 
 TelnetServer::~TelnetServer() {
@@ -48,4 +48,25 @@ void TelnetServer::loop() {
 
 bool TelnetServer::handleConnection(int sock) {
     return true;
+}
+
+void TelnetServer::dropProxy() {
+    std::lock_guard<std::mutex> lock(currentProxyMutex);
+    currentProxy = std::nullopt;
+    keepAlive->sendPipeMessage(Command::NoAddress);
+}
+
+void TelnetServer::IAM(std::vector<uint8_t> const& name, sockaddr_in& address) {
+    std::string sname = TelnetServer::toString(name);
+    std::lock_guard<std::mutex> lock(availableProxiesMutex);
+    availableProxies.push_back(Proxy {sname, address});
+}
+
+void TelnetServer::METADATA(std::vector<uint8_t> const& metadata) {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    this->metadata = TelnetServer::toString(metadata);
+}
+
+std::string TelnetServer::toString(std::vector<uint8_t> const& data) {
+    return std::string {reinterpret_cast<const char*>(data.data()), data.size()};
 }

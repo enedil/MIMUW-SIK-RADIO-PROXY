@@ -1,15 +1,20 @@
 #pragma once
 #include "message.h"
-#include "telnetserver.h"
+
+class TelnetServer;
 
 class ProxyReceiver {
 public:
-    ProxyReceiver(int sockfd, TelnetServer& telnetServer);
-    void sendPipeMessage(PipeMessage&& msg);
+    ProxyReceiver(int sockfd, TelnetServer* telnetServer, int timeout);
+    void sendPipeMessage(PipeMessage const&& msg);
     ~ProxyReceiver();
 private:
+    void receivePipeMessage(PipeMessage& msg);
     int sockfd;
     int pipefd[2];
+    int timeout;
     void loop();
-    TelnetServer& telnetServer;
+    TelnetServer* telnetServer;
+    void dispatchMessage(MessageType type, std::vector<uint8_t> const& data, sockaddr_in& address);
+    void playMusic(std::vector<uint8_t> const& data);
 };

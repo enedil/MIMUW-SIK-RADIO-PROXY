@@ -60,9 +60,9 @@ namespace Message {
             throw "TODO"; // TODO
         data.resize(header[1]);
         switch (header[0]) {
-        case DISCOVER:      type = DISCOVER;    break;
+        //case DISCOVER:      type = DISCOVER;    break;
         case IAM:           type = IAM;         break;
-        case KEEPALIVE:     type = KEEPALIVE;   break;
+        //case KEEPALIVE:     type = KEEPALIVE;   break;
         case AUDIO:         type = AUDIO;       break;
         case METADATA:      type = METADATA;    break;
         default:
