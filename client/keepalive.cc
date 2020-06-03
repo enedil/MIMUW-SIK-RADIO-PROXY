@@ -48,6 +48,12 @@ KeepAlive::KeepAlive(int sockfd) {
     t.detach();
 }
 
+KeepAlive::~KeepAlive() {
+    sendPipeMessage(Command::Stop);
+    close(pipefd[0]);
+    close(pipefd[1]);
+}
+
 void KeepAlive::sendPipeMessage(PipeMessage&& msg) {
     if (write(pipefd[1], &msg, sizeof(msg)) != sizeof(msg))
         syserr("write on pipe");

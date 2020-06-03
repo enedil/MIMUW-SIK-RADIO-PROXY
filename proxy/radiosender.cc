@@ -38,7 +38,7 @@ RadioSender::RadioSender(unsigned port, std::optional<std::string> broadcastAddr
         local_address.sin_family = AF_INET;
         local_address.sin_addr.s_addr = htonl(INADDR_ANY);
         local_address.sin_port = htons(port);
-        if (bind(sock, reinterpret_cast<struct sockaddr *>(&local_address), sizeof local_address) < 0)
+        if (bind(sock, reinterpret_cast<const sockaddr *>(&local_address), sizeof local_address) < 0)
             throw std::system_error { 
                 std::error_code(errno, std::system_category()), "port already taken, or bind fails otherwise"
             };
@@ -162,7 +162,7 @@ void RadioSender::controller(RadioReader& reader) {
     socklen_t sendToAClientLen = sizeof(clientAddress);
     while (true) {
         uint16_t type;
-        if (recvfrom(sock, &type, sizeof(type), 0, reinterpret_cast<sockaddr*>(&clientAddress), &sendToAClientLen) < sizeof(type)) {
+        if (recvfrom(sock, &type, sizeof(type), 0, reinterpret_cast<sockaddr*>(&clientAddress), &sendToAClientLen) < static_cast<ssize_t>(sizeof(type))) {
 //dfjsiofjdsi
         }
         type = ntohs(type);

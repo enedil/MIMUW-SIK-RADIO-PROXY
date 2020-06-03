@@ -3,11 +3,10 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <poll.h>
 #include <unistd.h>
 #include <system_error>
 #include "message.h"
-#include "telnet-server.h"
+#include "telnetserver.h"
 
 static void syserr(char const* reason) {
     throw std::system_error { std::error_code(errno, std::system_category()), reason };

@@ -4,6 +4,7 @@
 class KeepAlive {
 public:
     KeepAlive(int sockfd);
+    ~KeepAlive();
     void sendPipeMessage(PipeMessage&& msg);
 private:
     int sockfd;
