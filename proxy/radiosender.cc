@@ -136,10 +136,12 @@ int RadioSender::sendrecvLoop(RadioReader& reader) {
         switch(type) {
         case ICY_AUDIO:
             logging.write((char*)buf.data(), buf.size());
-            sendData(AUDIO, buf, std::nullopt);
+            if (buf.size() > 0)
+                sendData(AUDIO, buf, std::nullopt);
             break;
         case ICY_METADATA:
-            sendData(METADATA, buf, std::nullopt);
+            if (buf.size() > 0)
+                sendData(METADATA, buf, std::nullopt);
             break;
         case END_OF_STREAM:
             ret = EXIT_SUCCESS;
