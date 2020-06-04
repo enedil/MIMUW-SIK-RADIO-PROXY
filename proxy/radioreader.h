@@ -16,7 +16,6 @@ class RadioReader {
 public:
     RadioReader(std::string& host, std::string& resource, std::string& port, unsigned timeout, bool metadata);
     bool init();
-    const std::vector<uint8_t>& get_data_to_send();
     std::string description();
     std::pair<ChunkType, const std::vector<uint8_t>&> readChunk();
     ~RadioReader();
