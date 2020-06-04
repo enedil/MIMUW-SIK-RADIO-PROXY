@@ -1,19 +1,11 @@
 #include <algorithm>
 #include <exception>
 #include <ext/stdio_filebuf.h>
-#include <iostream>
-#include <iomanip>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <vector>
 #include <cstring>
-#include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include "error.h"
-#include <cassert>
 #include "message.h"
 #include "telnetserver.h"
 
@@ -32,7 +24,11 @@ namespace {
         size_t position;
     };
 
-    Menu::Menu(std::mutex& mtx, std::vector<TelnetServer::Proxy>& proxies) : position(0), mtx(mtx), proxies(proxies) {}
+    Menu::Menu(std::mutex& mtx, std::vector<TelnetServer::Proxy>& proxies) : 
+        position(0), 
+        mtx(mtx), 
+        proxies(proxies) 
+    {}
 
     void Menu::resetPosition() {
         position = 0;
@@ -221,7 +217,8 @@ void TelnetServer::dropProxy() {
 void TelnetServer::IAM(std::vector<uint8_t> const& name, sockaddr_in& address) {
     std::string sname = TelnetServer::toString(name);
     std::lock_guard<std::mutex> lock(availableProxiesMutex);
-    if (std::find(std::begin(availableProxies), std::end(availableProxies), address) == std::end(availableProxies))
+    if (std::find_if(std::begin(availableProxies), std::end(availableProxies), 
+                [&](auto x){ return x.address == address; }) == std::end(availableProxies))
         availableProxies.push_back(Proxy {sname, address});
 }
 
