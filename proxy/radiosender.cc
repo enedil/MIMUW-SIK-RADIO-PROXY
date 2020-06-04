@@ -130,12 +130,12 @@ int RadioSender::sendrecvLoop(RadioReader& reader) {
     std::thread controller {[&]() { this->controller(reader); }};
     int ret = -1;
     bool loop = true;
-    std::ofstream logging("output");
+    //std::ofstream logging("output");
     while (loop) {
         auto [type, buf] = reader.readChunk();
         switch(type) {
         case ICY_AUDIO:
-            logging.write((char*)buf.data(), buf.size());
+           // logging.write((char*)buf.data(), buf.size());
             if (buf.size() > 0)
                 sendData(AUDIO, buf, std::nullopt);
             break;
@@ -165,19 +165,22 @@ void RadioSender::controller(RadioReader& reader) {
     while (true) {
         uint16_t type;
         if (recvfrom(sock, &type, sizeof(type), 0, reinterpret_cast<sockaddr*>(&clientAddress), &sendToAClientLen) < static_cast<ssize_t>(sizeof(type))) {
-//dfjsiofjdsi
+            std::cerr << "recvfrom bad" << "\n";
         }
         type = ntohs(type);
+        /*
         std::cerr << 
             "client addr:" << ntohl(clientAddress.sin_addr.s_addr)
             << " port:" << ntohs(clientAddress.sin_port) 
             << "type: " << type << std::endl;
+            */
         if (type == DISCOVER) {
             auto desc = reader.description();
             auto begin = reinterpret_cast<const uint8_t*>(desc.c_str());
             auto end = begin + desc.length();
             sendData(IAM, begin, end, clientAddress);
-        } else if (type == KEEPALIVE) {
+        }
+        if (type == DISCOVER || type == KEEPALIVE) {
             std::lock_guard<std::mutex> lock(clientsMutex);
             clients[clientAddress] = clock::now();
         }
