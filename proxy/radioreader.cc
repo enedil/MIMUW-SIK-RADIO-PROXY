@@ -1,4 +1,6 @@
+#include <exception>
 #include <netinet/in.h>
+#include <stdexcept>
 #include <utility>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -13,14 +15,23 @@
 
 static volatile sig_atomic_t interrupt_occured = 0;
 
-static void interrupt_handler(int signo) {
+namespace {
+struct FatalCondition : public std::exception {
+    const char* reason;
+    FatalCondition(const char* reason) : reason(reason) {}
+	const char* what() const throw () {
+    	return reason;
+    }
+};
+
+void interrupt_handler(int signo) {
     interrupt_occured = 1;
+}
 }
 
 RadioReader::RadioReader(std::string const& host, std::string const& port, sockaddr_in const& address, std::string& resource, unsigned timeout, bool metadata) :
     timeout(timeout), metadata(metadata), host(host), port(port), resource(resource), progress(0) {
         int status;
-
         fd = socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0)
             syserr("socket");
@@ -117,48 +128,43 @@ std::string RadioReader::description() {
 
 
 std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
-    decltype(readChunk()) ret = {END_OF_STREAM, buffer};
-    if (interrupt_occured) {
-        return ret;
-    }
-    if (progress == metaint) {
-        progress = 0;
-        if (metadata) {
-            ret.first = ICY_METADATA;
-            uint8_t metadataLength = 0;
-            auto r = read(fd, &metadataLength, sizeof(metadataLength));
-            if (r < 0 && errno != EINTR)
-                ret.first = ERROR;
-            if (r != 1)
-                ret.first = END_OF_STREAM;
-            else {
-                buffer.resize(16 * static_cast<size_t>(metadataLength));
-                r = readAll(buffer);
-                if (!r) {
-                    ret.first = interrupt_occured ? END_OF_STREAM : ERROR;
-                }
-            }
+    decltype(readChunk()) ret = {INTERRUPT, buffer};
+    try {
+        if (interrupt_occured) {
             return ret;
         }
-    }
-    buffer.resize(std::min(metaint - progress, maxPacketSize));
-    setTimeout();
-    auto sz = read(fd, buffer.data(), buffer.size());
-    if (sz == 0) {
-        ret.first = END_OF_STREAM;
+        if (progress == metaint) {
+            progress = 0;
+            if (metadata) {
+                ret.first = ICY_METADATA;
+                uint8_t metadataLength = 0;
+                auto r = read(fd, &metadataLength, sizeof(metadataLength));
+                if (r < 0)
+                    syserr("read");
+                if (r != sizeof(metadataLength))
+                    throw FatalCondition("short read");
+                else {
+                    buffer.resize(16 * static_cast<size_t>(metadataLength));
+                    if (!readAll(buffer))
+                        throw FatalCondition("short read");
+                }
+                return ret;
+            }
+        }
+        buffer.resize(std::min(metaint - progress, maxPacketSize));
+        setTimeout();
+        auto sz = read(fd, buffer.data(), buffer.size());
+        if (sz < 0)
+            throw FatalCondition("short or bad read");
+        progress += static_cast<size_t>(sz);
+        buffer.resize(static_cast<size_t>(sz));
+        ret.first = ICY_AUDIO;
         return ret;
+    } catch (FatalCondition& exc) {
+        if (interrupt_occured)
+            return ret;
+        throw;
     }
-    if (sz < 0 && errno != EAGAIN && !interrupt_occured) {
-        ret.first = ERROR;
-        return ret;
-    } else if (sz < 0) {
-        ret.first = END_OF_STREAM;
-        return ret;
-    }
-    progress += static_cast<size_t>(sz);
-    buffer.resize(static_cast<size_t>(sz));
-    ret.first = ICY_AUDIO;
-    return ret;
 }
 
 int RadioReader::readAll(std::vector<uint8_t>& data) {

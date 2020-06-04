@@ -9,8 +9,7 @@
 enum ChunkType {
     ICY_AUDIO = STDOUT_FILENO,
     ICY_METADATA = STDERR_FILENO,
-    END_OF_STREAM,
-    ERROR
+    INTERRUPT
 };
 
 class RadioReader {

@@ -1,20 +1,19 @@
 #include <chrono>
-#include <iterator>
 #include <errno.h>
 #include <cstring>
 #include <limits>
+#include <stdexcept>
 #include <unistd.h>
 #include <cassert>
-#include <system_error>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/uio.h>
 #include <arpa/inet.h>
 #include <vector>
 #include <cstdlib>
 #include <iostream>
 #include <array>
 #include <fstream>
+#include "error.h"
 #include "radiosender.h"
 
 static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size);
@@ -23,25 +22,21 @@ RadioSender::RadioSender(unsigned port, std::optional<std::string> broadcastAddr
     timeout(timeout), isBroadcasted(broadcastAddr) {
         sock = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock == -1) {
-            throw std::system_error { std::error_code(errno, std::system_category()), "socket" };
+            syserr("socket");
         }
         if (broadcastAddr) {
             ip_mreq_.imr_interface.s_addr = htonl(INADDR_ANY);
-            if (inet_aton(broadcastAddr.value().c_str(), &ip_mreq_.imr_multiaddr) == 0) {
-                throw std::system_error { std::error_code(errno, std::system_category()), "invalid multicast adddress" };
-            }
-            if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &ip_mreq_, sizeof ip_mreq_) < 0) {
-                throw std::system_error { std::error_code(errno, std::system_category()), "setsockopt IP_ADD_MEMBERSHIP" };
-            }
+            if (inet_aton(broadcastAddr.value().c_str(), &ip_mreq_.imr_multiaddr) == 0)
+                throw std::domain_error("inet_aton: invalid multicast adddress");
+            if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &ip_mreq_, sizeof ip_mreq_) < 0)
+                syserr("setsockopt IP_ADD_MEMBERSHIP");
         }
         sockaddr_in local_address;
         local_address.sin_family = AF_INET;
         local_address.sin_addr.s_addr = htonl(INADDR_ANY);
         local_address.sin_port = htons(port);
         if (bind(sock, reinterpret_cast<const sockaddr *>(&local_address), sizeof local_address) < 0)
-            throw std::system_error { 
-                std::error_code(errno, std::system_category()), "port already taken, or bind fails otherwise"
-            };
+            syserr("bind: port already taken, or bind fails otherwise");
 }
 
 
@@ -102,21 +97,16 @@ void RadioSender::sendToAClient(msghdr msghdr, sockaddr_in address) {
     msghdr.msg_name = reinterpret_cast<void*>(&address);
     msghdr.msg_namelen = sizeof(address);
     auto r = sendmsg(sock, &msghdr, 0);
-    if (r < 0) {
-        throw std::system_error { std::error_code(errno, std::system_category()), "sendmsg" };
-    }
-    //std::cerr << "sent " << r << "bytes\n";
-
+    if (r < 0)
+        syserr("sendmsg");
 }
 
 void RadioSender::sendToAllClients(msghdr msghdr) {
     std::lock_guard<std::mutex> lock(clientsMutex);
     auto clients_copy = clients;
     for (auto& client : clients) {
-        //std::cerr << "Client: [" << ntohl(client.first.sin_addr.s_addr) << "," << ntohs(client.first.sin_port) << "]\n";
         auto now = clock::now();
         auto diff = std::chrono::duration_cast<std::chrono::seconds>(now - client.second);
-        //std::cerr << "diff=" << diff.count() << "\n";
         if (diff.count() > timeout) {
             clients_copy.erase(client.first);
         } else {
@@ -128,14 +118,12 @@ void RadioSender::sendToAllClients(msghdr msghdr) {
 
 int RadioSender::sendrecvLoop(RadioReader& reader) {
     std::thread controller {[&]() { this->controller(reader); }};
+    controller.detach();
     int ret = -1;
-    bool loop = true;
-    //std::ofstream logging("output");
-    while (loop) {
+    while (true) {
         auto [type, buf] = reader.readChunk();
         switch(type) {
         case ICY_AUDIO:
-           // logging.write((char*)buf.data(), buf.size());
             if (buf.size() > 0)
                 sendData(AUDIO, buf, std::nullopt);
             break;
@@ -143,19 +131,11 @@ int RadioSender::sendrecvLoop(RadioReader& reader) {
             if (buf.size() > 0)
                 sendData(METADATA, buf, std::nullopt);
             break;
-        case END_OF_STREAM:
-            ret = EXIT_SUCCESS;
-            loop = false;
-            exit(ret);
-            break;
-        case ERROR:
-            ret = EXIT_FAILURE;
-            loop = false;
-            exit(ret);
+        case INTERRUPT:
+            return EXIT_SUCCESS;
             break;
         }
     }
-    controller.join();
     return ret;
 }
 

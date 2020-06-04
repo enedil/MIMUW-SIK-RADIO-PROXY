@@ -99,6 +99,9 @@ ProxyArguments::ProxyArguments(int argc, char* const argv[]) :
             throw std::invalid_argument("missing parameter: -"s + f + " ("+ long_names[f] + ")");
         }
     }
+    if (!found['B'] && (found['P'] || found['T'])) {
+        throw std::invalid_argument("extraneous argument");
+    }
     address = getAddress(host, port);
     this->host = host;
     this->port = port;
