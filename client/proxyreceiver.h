@@ -6,6 +6,7 @@ class TelnetServer;
 class ProxyReceiver {
 public:
     ProxyReceiver(int sockfd, TelnetServer* telnetServer, int timeout);
+    ProxyReceiver(const ProxyReceiver&) = delete;
     void sendPipeMessage(PipeMessage const&& msg);
     ~ProxyReceiver();
 private:
