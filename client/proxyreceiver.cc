@@ -8,10 +8,6 @@
 #include "message.h"
 #include "error.h"
 
-constexpr bool operator==(sockaddr_in const& lhs, sockaddr_in const& rhs) {
-    return lhs.sin_addr.s_addr == rhs.sin_addr.s_addr && lhs.sin_port == rhs.sin_port;
-}
-
 ProxyReceiver::ProxyReceiver(int sockfd, TelnetServer* telnetServer, int timeout) : 
     telnetServer(telnetServer), sockfd(sockfd), timeout(timeout) {
     if (pipe(pipefd) != 0)
@@ -68,16 +64,20 @@ void ProxyReceiver::loop() {
         }
         if (sockEv.revents & POLLIN) {
             sockaddr_in address;
+            address.sin_addr.s_addr = htonl(INADDR_ANY);
+            address.sin_port = htons(0);
+            address.sin_family = AF_INET;
             MessageType type;
             Message::recvMessage(sockEv.fd, type, data, address);
             switch (type) {
             case AUDIO:
             case METADATA:
+                // Drop packet
                 if (!currentAddress || !(address == currentAddress.value()))
                     continue;
                 break;
             default:
-                continue;
+                break;
             }
             dispatchMessage(type, data, address);
         }
@@ -104,4 +104,10 @@ ProxyReceiver::~ProxyReceiver() {
     sendPipeMessage(Command::Stop);
     close(pipefd[0]);
     close(pipefd[1]);
+}
+
+void ProxyReceiver::playMusic(std::vector<uint8_t> const& data) {
+    ssize_t written = write(STDOUT_FILENO, reinterpret_cast<const char*>(data.data()), data.size());
+    if (written < 0 || static_cast<size_t>(written) != data.size())
+        syserr("write to stdout");
 }

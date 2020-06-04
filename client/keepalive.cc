@@ -15,11 +15,8 @@ static void loop(int sockfd, int pipefd) {
         try {
             uint8_t dummydata[1] = {};
             Message::sendMessage(sockfd, MessageType::KEEPALIVE, dummydata, dummydata, std::get<sockaddr_in>(msg));
-            std::cout << "has address\n";
         } catch (const std::bad_variant_access&) {
-            std::cout << "has command\n";
             if (std::get<Command>(msg) == Command::Stop) {
-                std::cout << "stop\n";
                 return;
             }
         }
@@ -34,7 +31,6 @@ static void loop(int sockfd, int pipefd) {
         if (fds.revents & POLLIN) {
             if (read(pipefd, &msg, sizeof(msg)) < static_cast<ssize_t>(sizeof(msg)))
                 syserr("reading PipeMessage failed");
-            std::cout << "received data\n";
         } else if (fds.revents & POLLERR) {
             syserr("POLLERR");
         }

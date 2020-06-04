@@ -1,5 +1,6 @@
 #pragma once
 #include <netinet/in.h>
+#include <ostream>
 #include <string>
 #include <mutex>
 #include <vector>
@@ -10,20 +11,24 @@
 
 
 class TelnetServer {
+public:
     struct Proxy {
         std::string name;
         sockaddr_in address;
     };
-public:
-    TelnetServer(unsigned port);
+    TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr);
     ~TelnetServer();
     void loop();
     void dropProxy();
     void METADATA(std::vector<uint8_t> const& metadata);
     void IAM(std::vector<uint8_t> const& name, sockaddr_in& address);
 private:
+    void discover(std::optional<sockaddr_in>&& recepient = std::nullopt);
     bool handleConnection(int sock);
     int listenerSock;
+    int udpSock;
+    sockaddr_in proxyAddr;
+
     std::mutex availableProxiesMutex;
     std::vector<Proxy> availableProxies;
     std::mutex currentProxyMutex;

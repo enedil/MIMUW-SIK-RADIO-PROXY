@@ -7,10 +7,10 @@
 
 Args::Args(int argc, char* argv[]) : timeout(5) {
     int opt;
-    char * host, *port;
+    char * host = NULL, *port = NULL;
     std::unordered_map<int, bool> seen;
     seen[0] = true;
-    while ((opt = getopt(argc, argv, "H:P:p:t:")) != -1) {
+    while ((opt = getopt(argc, argv, "H:P:p:T:")) != -1) {
         seen[opt] = true;
         switch(opt) {
         case 'H':
@@ -23,10 +23,12 @@ Args::Args(int argc, char* argv[]) : timeout(5) {
             if (sscanf(optarg, "%u", &telnetPort) != 1 || telnetPort == 0)
                 throw std::invalid_argument("port shall be a positive integer");
             break;
-        case 't':
+        case 'T':
             if (sscanf(optarg, "%u", &timeout) != 1)
                 throw std::invalid_argument("timeout shall be a nonnegative integer");
             break;
+        default:
+            throw std::invalid_argument(std::string("invalid argument: ") + (char)opt);
         }
     }
     for (auto c : "HPp") {

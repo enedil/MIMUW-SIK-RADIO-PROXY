@@ -1,7 +1,11 @@
 #include "message.h"
 #include <errno.h>
 #include <cstring>
+#include <exception>
+#include <stdexcept>
 #include <iostream>
+
+#include <unistd.h>
 
 #include <cstring>
 #include <array>
@@ -29,7 +33,10 @@ namespace Message {
         m.msg_name = &destination;
         m.msg_namelen = sizeof(destination);
         ssize_t rec;
-        if ((rec = sendmsg(sockfd, &m, 0)) != scattergather[0].iov_len + scattergather[1].iov_len) {
+        rec = sendmsg(sockfd, &m, 0);
+        if (rec < 0)
+            throw "TODO"; //TODO
+        if (static_cast<size_t>(rec) != scattergather[0].iov_len + scattergather[1].iov_len) {
             std::cerr << "err:" << rec << " " <<  strerror(errno) << "\n";
             throw "TODO"; //TODO
         }
@@ -50,10 +57,12 @@ namespace Message {
         m.msg_name = &source;
         m.msg_namelen = sizeof(source);
         ssize_t received;
-        if ((received = recvmsg(sockfd, &m, 0) < 0))
-            throw "TODO"; // TODO
-        if (static_cast<size_t>(received) < scattergather[0].iov_len)
-            throw "TODO"; // TODO
+        if ((received = recvmsg(sockfd, &m, 0)) < 0)
+            throw std::length_error { "recvmsg failed" }; // TODO
+        if (static_cast<size_t>(received) < scattergather[0].iov_len) {
+            std::cerr << "received=" << received << ",iov_len=" << scattergather[0].iov_len << "\n";
+            throw std::length_error { "MESSAGE too short" }; // TODO
+        }
         header[0] = ntohs(header[0]);
         header[1] = ntohs(header[1]);
         if (static_cast<size_t>(received) != scattergather[0].iov_len + header[1])
