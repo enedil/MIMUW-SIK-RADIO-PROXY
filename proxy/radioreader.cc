@@ -117,7 +117,7 @@ bool RadioReader::parseHeaders(const std::string& headers) {
     } else if (icymetaint != icyOptions.end()) {
         metaint = std::stoul(icymetaint->second);
     } else {
-        metaint = (1<<16)-500; //todo change magic
+        metaint = 1e9;
     }
     return true;
 }
@@ -152,9 +152,9 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
             return ret;
         }
     }
-    buffer.resize(metaint - progress);
+    buffer.resize(std::min(metaint - progress, maxPacketSize));
     setTimeout();
-    auto sz = read(fd, buffer.data(), metaint - progress);
+    auto sz = read(fd, buffer.data(), buffer.size());
     if (sz == 0) {
         ret.first = END_OF_STREAM;
         return ret;
