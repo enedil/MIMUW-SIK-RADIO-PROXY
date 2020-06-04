@@ -110,8 +110,6 @@ TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : 
     if (setsockopt(udpSock, SOL_SOCKET, SO_BROADCAST, (void*)&optval, sizeof optval) < 0)
         syserr("setsockopt broadcast");
 
-
-
     keepAlive = std::make_unique<KeepAlive>(udpSock);
     proxyReceiver = std::make_unique<ProxyReceiver>(udpSock, this, timeout);
 }
