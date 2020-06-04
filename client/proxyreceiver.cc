@@ -9,7 +9,7 @@
 #include "error.h"
 
 ProxyReceiver::ProxyReceiver(int sockfd, TelnetServer* telnetServer, int timeout) : 
-    telnetServer(telnetServer), sockfd(sockfd), timeout(timeout) {
+    telnetServer(telnetServer), sockfd(sockfd), timeout(timeout * 1000 /* seconds to miliseconds */) {
     if (pipe(pipefd) != 0)
         syserr("pipe");
     std::thread t { &ProxyReceiver::loop, this };
@@ -44,9 +44,7 @@ void ProxyReceiver::loop() {
             currentAddress = std::get<sockaddr_in>(msg);
         }
         pipeEv.events = POLLIN;
-        pipeEv.revents = 0;
         sockEv.events = POLLIN;
-        sockEv.revents = 0;
         int ret = poll(fds, std::size(fds), timeout);
         if (ret < 0 && errno == EINTR)
             continue;
