@@ -1,4 +1,5 @@
 #pragma once
+#include <netinet/in.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -14,7 +15,7 @@ enum ChunkType {
 
 class RadioReader {
 public:
-    RadioReader(std::string& host, std::string& resource, std::string& port, unsigned timeout, bool metadata);
+    RadioReader(std::string const& host, std::string const& port, sockaddr_in const& address, std::string& resource, unsigned timeout, bool metadata);
     bool init();
     std::string description();
     std::pair<ChunkType, const std::vector<uint8_t>&> readChunk();

@@ -1,16 +1,14 @@
 #include <netinet/in.h>
 #include <utility>
-#include <unordered_map>
-#include <iostream>
-#include <sstream>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <system_error>
 #include <regex>
 #include <netdb.h>
 #include <unistd.h>
-#include <errno.h>
+#include <cerrno>
 #include <signal.h>
+#include "error.h"
 #include "radioreader.h"
 
 static volatile sig_atomic_t interrupt_occured = 0;
@@ -19,28 +17,20 @@ static void interrupt_handler(int signo) {
     interrupt_occured = 1;
 }
 
-RadioReader::RadioReader(std::string& host, std::string& resource, std::string& port, unsigned timeout, bool metadata) :
+RadioReader::RadioReader(std::string const& host, std::string const& port, sockaddr_in const& address, std::string& resource, unsigned timeout, bool metadata) :
     timeout(timeout), metadata(metadata), host(host), port(port), resource(resource), progress(0) {
         int status;
-        addrinfo hints = {};
-        addrinfo* res;
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        if (0 != (status = getaddrinfo(host.c_str(), port.c_str(), &hints, &res))) {
-            throw std::system_error { std::error_code(status, std::system_category()), gai_strerror(status) };
-        }
 
         fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (fd < 0) {
-            freeaddrinfo(res);
-            throw std::system_error { std::error_code(errno, std::system_category()), "socket" };
-        }
+        if (fd < 0)
+            syserr("socket");
 
-        status = connect(fd, res->ai_addr, sizeof(sockaddr_in));
-        freeaddrinfo(res);
+        status = connect(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
         if (status != 0) {
+            int saved_errno = errno;
             close(fd);
-            throw std::system_error { std::error_code(errno, std::system_category()), "connect" };
+            errno = saved_errno;
+            syserr("connect");
         }
 }
 
@@ -109,7 +99,6 @@ bool RadioReader::parseHeaders(const std::string& headers) {
         if (line.substr(0, 4) != "icy-")
             continue;
         icyOptions[line.substr(0, j)] = line.substr(j+1, line.length());
-        std::cout << line << "\n";
     }
     auto icymetaint = icyOptions.find("icy-metaint");
     if (icymetaint != icyOptions.end() and !metadata) {
