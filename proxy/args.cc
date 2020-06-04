@@ -1,16 +1,60 @@
+#include <cctype>
+#include <netdb.h>
 #include <iostream>
 #include <stdexcept>
+#include <exception>
+#include <system_error>
 #include <type_traits>
 #include <unistd.h>
 #include <string_view>
 #include <unordered_map>
+#include <cstring>
+#include <cctype>
 #include "args.h"
 
 using namespace std::literals;
 
-ProxyArguments::ProxyArguments(int argc, char* const argv[]) : metadata(true), timeout(5), udptimeout(5), udpport(), udpaddr() {
+namespace {
+sockaddr_in getAddress(const char* host, const char* port) {
+    int status;
+    addrinfo hints = {};
+    addrinfo* res;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    if ((status = getaddrinfo(host, port, &hints, &res)) != 0) {
+        throw std::runtime_error { "getaddrinfo:"s + gai_strerror(status) };
+    }
+    sockaddr_in addr = *reinterpret_cast<sockaddr_in*>(res->ai_addr);
+    freeaddrinfo(res);
+    return addr;
+}
+
+unsigned parseUnsigned(const char* str) {
+    for (size_t i = 0; str[i] != '\0'; ++i) {
+        if (!std::isdigit(str[i])) {
+            throw std::invalid_argument("this isn't a number");
+        }
+    }
+    unsigned u;
+    if (sscanf(str, "%u", &u) != 1 || u == 0)
+        throw std::invalid_argument("port shall be a nonnegative integer");
+    return u;
+}
+}
+
+ProxyArguments::ProxyArguments(int argc, char* const argv[]) : 
+    metadata(true), timeout(5), udptimeout(5), udpport(), udpaddr() {
+    static std::unordered_map<char, const char*> long_names = {
+        {'h', "ICY host"},
+        {'r', "resource"},
+        {'p', "ICY port"},
+        {'m', "send metadata"},
+        {'t', "ICY timeout"},
+        {'P', "UDP listening port"},
+        {'T', "client timeout"}};
+    const char* host, *port;
     int opt;
-    std::unordered_map<int, bool> found;
+    std::unordered_map<char, bool> found;
     found[0] = true;
     while ((opt = getopt(argc, argv, "h:r:p:m:t:P:B:T:")) != -1) {
         found[opt] = true;
@@ -33,29 +77,29 @@ ProxyArguments::ProxyArguments(int argc, char* const argv[]) : metadata(true), t
                     throw std::invalid_argument("-m yes|no");
                 break;
             case 't':
-                if (sscanf(optarg, "%u", &timeout) != 1)
-                    throw std::invalid_argument("timeout shall be a nonnegative integer");
+                timeout = parseUnsigned(optarg);
                 break;
             case 'P':
-                unsigned p;
-                if (sscanf(optarg, "%u", &p) != 1 || udpport == 0)
-                    throw std::invalid_argument("port shall be a nonnegative integer");
-                udpport = p;
+                udpport = parseUnsigned(optarg);
+                if (udpport.value() == 0)
+                    throw std::invalid_argument("port shall not be zero");
                 break;
             case 'B':
                 udpaddr = optarg;
                 break;
             case 'T':
-                if (sscanf(optarg, "%u", &udptimeout) != 1)
-                    throw std::invalid_argument("timeout shall be a nonnegative integer");
+                udptimeout = parseUnsigned(optarg);
                 break;
             default:
                 throw std::invalid_argument("provided argument is not known");
         }
     }
-    for (int f : "hrp") {
+    for (char f : "hrp") {
         if (!found[f]) {
-            throw std::invalid_argument("missing parameter");
+            throw std::invalid_argument("missing parameter: -"s + f + " ("+ long_names[f] + ")");
         }
     }
+    address = getAddress(host, port);
+    this->host = host;
+    this->port = port;
 }
