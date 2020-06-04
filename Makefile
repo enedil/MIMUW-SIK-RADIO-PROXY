@@ -1,7 +1,9 @@
 #CXX		 = clang++
 CXX		 = g++
 #CXXFLAGS = -Weverything -std=c++2a -Wno-padded -Wno-reorder -Wno-c++98-compat -Wno-shadow-field-in-constructor -g3 -O2 -pthread
-CXXFLAGS = -std=c++2a -Wall -Wextra -Wno-reorder -g3 -O2 -pthread 
+CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Weffc++ -Wstrict-null-sentinel -Wno-reorder -g3 -O2 -pthread 
+
+
 #CXXFLAGS += -fsanitize=undefined,address
 
 #CXXFLAGS = -std=c++17
