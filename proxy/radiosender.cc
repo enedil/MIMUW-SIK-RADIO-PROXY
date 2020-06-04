@@ -168,12 +168,6 @@ void RadioSender::controller(RadioReader& reader) {
             std::cerr << "recvfrom bad" << "\n";
         }
         type = ntohs(type);
-        /*
-        std::cerr << 
-            "client addr:" << ntohl(clientAddress.sin_addr.s_addr)
-            << " port:" << ntohs(clientAddress.sin_port) 
-            << "type: " << type << std::endl;
-            */
         if (type == DISCOVER) {
             auto desc = reader.description();
             auto begin = reinterpret_cast<const uint8_t*>(desc.c_str());
@@ -182,7 +176,13 @@ void RadioSender::controller(RadioReader& reader) {
         }
         if (type == DISCOVER || type == KEEPALIVE) {
             std::lock_guard<std::mutex> lock(clientsMutex);
-            clients[clientAddress] = clock::now();
+            if (type == DISCOVER)
+                clients[clientAddress] = clock::now();
+            else {
+                auto it = clients.find(clientAddress);
+                if (it != clients.end())
+                    it->second = clock::now();
+            }
         }
     }
 }
