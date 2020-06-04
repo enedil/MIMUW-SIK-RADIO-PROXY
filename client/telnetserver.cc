@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <exception>
 #include <ext/stdio_filebuf.h>
 #include <iostream>
+#include <iomanip>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -78,11 +80,12 @@ namespace {
             output << statusLine << CLRF;
         output.flush();
     }
+
     bool endswith(std::string const& first, std::string const& second) {
         if (first.length() < second.length())
             return false;
         for (size_t i = 0; i < second.length(); ++i) {
-            if (first[i] != second[i])
+            if (first[first.size()-i-1] != second[second.size()-i-1])
                 return false;
         }
         return true;
@@ -107,11 +110,14 @@ TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : 
     udpSock = socket(AF_INET, SOCK_DGRAM, 0);
     if (udpSock == -1)
         syserr("socket() udp");
+    int optval = 1;
+    if (setsockopt(udpSock, SOL_SOCKET, SO_BROADCAST, (void*)&optval, sizeof optval) < 0)
+        syserr("setsockopt broadcast");
+
 
 
     keepAlive = std::make_unique<KeepAlive>(udpSock);
     proxyReceiver = std::make_unique<ProxyReceiver>(udpSock, this, timeout);
-    discover();
 }
 
 void TelnetServer::discover(std::optional<sockaddr_in>&& recepient) {
@@ -159,9 +165,8 @@ bool TelnetServer::handleConnection(int sockin) {
     char c;
     Menu menu(availableProxiesMutex, availableProxies);
     menu.draw(telnetout, "");
-    while (telnetin >> c) {
+    while (telnetin.get(c)) {
         cyclicBuffer = cyclicBuffer.substr(1, cyclicBuffer.length()-1) + c;
-        std::cerr << cyclicBuffer << "\n";
         bool changed = false;
         if (endswith(cyclicBuffer, CSI + "A")) {
             menu.arrowUp();
@@ -176,7 +181,6 @@ bool TelnetServer::handleConnection(int sockin) {
             std::scoped_lock<std::mutex, std::mutex, std::mutex> lock(availableProxiesMutex, currentProxyMutex, metadataMutex);
             size_t position = menu.getPosition(); 
             menu.resetPosition(); 
-            std::cerr << "position:" << position << "\n";
             if (position == 0) { // wyszukiwanie pośredników
                 discover();
             } else if (position == 1+availableProxies.size()) { // zakończ
@@ -208,13 +212,7 @@ void TelnetServer::dropProxy() {
     std::scoped_lock<std::mutex, std::mutex, std::mutex> lock(availableProxiesMutex, currentProxyMutex, metadataMutex);
     metadata = "";
     if (currentProxy) {
-        size_t i = 0;
-        while (i < availableProxies.size()) {
-            if (availableProxies[i].address == currentProxy.value()->address) {
-                availableProxies.erase(std::begin(availableProxies) + i);
-            }
-            i++;
-        }
+        std::remove(std::begin(availableProxies), std::end(availableProxies), *currentProxy.value());
     }
     currentProxy = std::nullopt;
     keepAlive->sendPipeMessage(Command::NoAddress);
@@ -223,7 +221,8 @@ void TelnetServer::dropProxy() {
 void TelnetServer::IAM(std::vector<uint8_t> const& name, sockaddr_in& address) {
     std::string sname = TelnetServer::toString(name);
     std::lock_guard<std::mutex> lock(availableProxiesMutex);
-    availableProxies.push_back(Proxy {sname, address});
+    if (std::find(std::begin(availableProxies), std::end(availableProxies), address) == std::end(availableProxies))
+        availableProxies.push_back(Proxy {sname, address});
 }
 
 void TelnetServer::METADATA(std::vector<uint8_t> const& metadata) {
