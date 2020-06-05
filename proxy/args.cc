@@ -42,8 +42,7 @@ unsigned parseUnsigned(const char* str) {
 }
 }
 
-ProxyArguments::ProxyArguments(int argc, char* const argv[]) : 
-    metadata(true), timeout(5), udptimeout(5), udpport(), udpaddr() {
+ProxyArguments::ProxyArguments(int argc, char* const argv[]) {
     static std::unordered_map<char, const char*> long_names = {
         {'h', "ICY host"},
         {'r', "resource"},
@@ -99,7 +98,7 @@ ProxyArguments::ProxyArguments(int argc, char* const argv[]) :
             throw std::invalid_argument("missing parameter: -"s + f + " ("+ long_names[f] + ")");
         }
     }
-    if (!found['B'] && (found['P'] || found['T'])) {
+    if (!found['P'] && (found['B'] || found['T'])) {
         throw std::invalid_argument("extraneous argument");
     }
     address = getAddress(host, port);

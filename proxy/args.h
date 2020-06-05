@@ -9,9 +9,9 @@ struct ProxyArguments {
     std::string host;
     std::string port;
     std::string resource;
-    unsigned timeout;
-    bool metadata;
-    std::optional<unsigned> udpport;
-    std::optional<std::string> udpaddr;
-    unsigned udptimeout;
+    unsigned timeout = 5;
+    bool metadata = false;
+    std::optional<unsigned> udpport = std::nullopt;
+    std::optional<std::string> udpaddr = std::nullopt;
+    unsigned udptimeout = 5;
 };
