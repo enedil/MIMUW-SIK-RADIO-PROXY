@@ -1,17 +1,5 @@
-#include <chrono>
-#include <errno.h>
 #include <cstring>
-#include <limits>
-#include <stdexcept>
-#include <unistd.h>
-#include <cassert>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <vector>
-#include <cstdlib>
 #include <iostream>
-#include <array>
-#include <fstream>
 #include "../common/error.h"
 #include "radiosender.h"
 
@@ -50,7 +38,8 @@ private:
 };
 
 RAIIMsghdr::RAIIMsghdr(uint8_t const* begin, uint8_t const* end, MsgType type) {
-    assert(end >= begin);
+    if (end < begin)
+        throw std::range_error("end < begin");
     header = encodeHeader(type, end-begin);
     scattergather_array[0].iov_base = header.data();
     scattergather_array[0].iov_len = header.size() * sizeof(uint16_t);
@@ -67,7 +56,8 @@ msghdr RAIIMsghdr::get() {
 }
 
 static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size) {
-    assert(size < std::numeric_limits<uint16_t>::max());
+    if (size >= std::numeric_limits<uint16_t>::max())
+        throw std::range_error("size >= std::numeric_limits<uint16_t>::max()");
     std::array<uint16_t, 2> output;
     output[0] = htons(static_cast<uint16_t>(type));
     output[1] = htons(size);
