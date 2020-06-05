@@ -81,7 +81,6 @@ bool RadioReader::parseHeaders(const std::string& headers) {
     std::string line;
     if (!std::getline(s, line))
         return false;
-    std::cerr << line <<"\n";
     if (line != "ICY 200 OK\r" && line != "HTTP/1.0 200 OK\r" && line != "HTTP/1.1 200 OK\r")
         return false;
     while (std::getline(s, line)) {
@@ -130,8 +129,11 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
                     throw FatalCondition("short read of metadata");
                 else {
                     buffer.resize(16 * static_cast<size_t>(metadataLength));
-                    if (!readAll(buffer))
+                    try {
+                        fd.readAll(reinterpret_cast<char*>(buffer.data()), buffer.size());
+                    } catch (...) {
                         throw FatalCondition("short read");
+                    }
                 }
                 return ret;
             }
@@ -151,16 +153,4 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
             return ret;
         throw;
     }
-}
-
-int RadioReader::readAll(std::vector<uint8_t>& data) {
-    uint8_t* start = data.data();
-    uint8_t* end = data.data() + data.size();
-    while (start < end) {
-        ssize_t r = read(fd, start, end-start);
-        if (r <= 0)
-            return false;
-        start += r;
-    }
-    return true;
 }

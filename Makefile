@@ -1,4 +1,4 @@
-CXX		 = time g++
+CXX		 = g++
 CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -g3 -O2 -pthread 
 
 #CXXFLAGS += -fsanitize=undefined,address
