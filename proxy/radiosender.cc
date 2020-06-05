@@ -30,6 +30,9 @@ RadioSender::RadioSender(unsigned port, std::optional<std::string> broadcastAddr
                 throw std::domain_error("inet_aton: invalid multicast adddress");
             if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &ip_mreq_, sizeof ip_mreq_) < 0)
                 syserr("setsockopt IP_ADD_MEMBERSHIP");
+            int optval = 16;
+            if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, (void*)&optval, sizeof (optval)) < 0)
+                syserr("setsockopt IP_MULTICAST_TTL");
         }
         sockaddr_in local_address;
         local_address.sin_family = AF_INET;
