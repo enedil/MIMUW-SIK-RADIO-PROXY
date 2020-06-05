@@ -13,7 +13,7 @@
 #include <iostream>
 #include <array>
 #include <fstream>
-#include "error.h"
+#include "../common/error.h"
 #include "radiosender.h"
 
 static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size);

@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <signal.h>
 #include <unistd.h>
-#include "error.h"
+#include "../common/error.h"
 #include "message.h"
 #include "telnetserver.h"
 

@@ -4,8 +4,7 @@
 #include <unistd.h>
 #include "message.h"
 #include "keepalive.h"
-#include "error.h"
-#include <iostream>
+#include "../common/error.h"
 
 static void loop(int sockfd, int pipefd) {
     PipeMessage msg = Command::NoAddress;

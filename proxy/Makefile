@@ -1,22 +1,22 @@
-TARGET  = radio-proxy
-OBJFILES = radio-proxy.o args.o radioreader.o radiosender.o stdoutsender.o error.o
+TARGET  = reloc_radio-proxy.o
+OBJFILES = radio-proxy.o args.o radioreader.o radiosender.o stdoutsender.o
+COMMON = ../common
+ERRORH = $(COMMON)/error.h
 
 all: $(TARGET)
 
 clean:
 	rm $(TARGET) $(OBJFILES) 
 
-radio-proxy.o:	radio-proxy.cc args.h radioreader.h radiosender.h error.h
+radio-proxy.o:	radio-proxy.cc args.h radioreader.h radiosender.h $(ERRORH)
 
-radioreader.o:	radioreader.cc radioreader.h
+radioreader.o:	radioreader.cc radioreader.h $(ERRORH)
 
-radiosender.o: radiosender.cc radiosender.h radioreader.h
+radiosender.o: radiosender.cc radiosender.h radioreader.h $(ERRORH)
 
-stdoutsender.o: stdoutsender.cc stdoutsender.h radioreader.h
+stdoutsender.o: stdoutsender.cc stdoutsender.h radioreader.h $(ERRORH)
 
 args.o:	args.cc args.h
 
-error.o: error.cc error.h
-
 $(TARGET): $(OBJFILES)
-	$(CXX) $(CXXFLAGS) $(OBJFILES) -o $(TARGET)
+	ld -r $(OBJFILES) -o $(TARGET)

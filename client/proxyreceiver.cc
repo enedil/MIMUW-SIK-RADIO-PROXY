@@ -6,7 +6,7 @@
 #include "proxyreceiver.h"
 #include "telnetserver.h"
 #include "message.h"
-#include "error.h"
+#include "../common/error.h"
 
 ProxyReceiver::ProxyReceiver(int sockfd, TelnetServer* telnetServer, int timeout) : 
     telnetServer(telnetServer), sockfd(sockfd), timeout(timeout) {

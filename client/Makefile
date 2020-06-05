@@ -1,5 +1,7 @@
-TARGET  = radio-client
-OBJFILES = radio-client.o args.o telnetserver.o message.o error.o keepalive.o proxyreceiver.o
+TARGET  = reloc_radio-client.o
+OBJFILES = radio-client.o args.o telnetserver.o message.o keepalive.o proxyreceiver.o
+COMMON = ../common
+ERRORH = $(COMMON)/error.h
 
 all: $(TARGET)
 
@@ -10,15 +12,13 @@ radio-client.o:	radio-client.cc args.h
 
 args.o:	args.h
 
-telnetserver.o: telnetserver.cc telnetserver.h message.h error.h
+telnetserver.o: telnetserver.cc telnetserver.h message.h $(ERRORH)
 
 message.o: message.h
 
-error.o: error.h
+keepalive.o: keepalive.cc keepalive.h message.h $(ERRORH)
 
-keepalive.o: keepalive.cc keepalive.h message.h
-
-proxyreceiver.o: proxyreceiver.cc proxyreceiver.h message.h error.h
+proxyreceiver.o: proxyreceiver.cc proxyreceiver.h message.h $(ERRORH)
 
 $(TARGET): $(OBJFILES)
-	$(CXX) $(CXXFLAGS) $(OBJFILES) -o $(TARGET)
+	ld -r $(OBJFILES) -o $(TARGET)

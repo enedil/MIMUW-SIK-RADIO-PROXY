@@ -1,15 +1,22 @@
 #include <iostream>
 #include "stdoutsender.h"
-#include "error.h"
+#include "../common/error.h"
 
 int StdoutSender::sendrecvLoop(RadioReader& reader) {
+    ssize_t ret;
+    size_t totalWritten;
     while (true) {
         auto [type, buf] = reader.readChunk();
         switch(type) {
             case ICY_AUDIO:
             case ICY_METADATA:
-                if (write(type, buf.data(), buf.size()) != buf.size())
-                    syserr("write");
+                totalWritten = 0;
+                while (totalWritten < buf.size()) {
+                    ret = write(type, buf.data() + totalWritten, buf.size() - totalWritten);
+                    if (ret < 0)
+                        syserr("write");
+                    totalWritten += static_cast<size_t>(ret);
+                }
                 break;
             case INTERRUPT:
                 return EXIT_SUCCESS;

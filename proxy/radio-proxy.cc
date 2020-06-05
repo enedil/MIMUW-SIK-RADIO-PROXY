@@ -6,7 +6,7 @@
 #include <cstring>
 #include <unistd.h>
 #include "args.h"
-#include "error.h"
+#include "../common/error.h"
 #include "radioreader.h"
 #include "radiosender.h"
 #include "stdoutsender.h"

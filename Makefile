@@ -1,22 +1,18 @@
-#CXX		 = clang++
 CXX		 = g++
-#CXXFLAGS = -Weverything -std=c++2a -Wno-padded -Wno-reorder -Wno-c++98-compat -Wno-shadow-field-in-constructor -g3 -O2 -pthread
 CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -g3 -O2 -pthread 
-
 
 #CXXFLAGS += -fsanitize=undefined,address
 
-#CXXFLAGS = -std=c++17
-DBG 	 = -g3
 
 CLIENT = client
 PROXY = proxy
+COMMON = common
 
-all: $(CLIENT) $(PROXY)
-	install $(CLIENT)/radio-client .
-	install $(PROXY)/radio-proxy .
+all: $(CLIENT) $(PROXY) $(COMMON)
+	$(CXX) $(CXXFLAGS) $(COMMON)/reloc_common.o $(CLIENT)/reloc_radio-client.o -o radio-client
+	$(CXX) $(CXXFLAGS) $(COMMON)/reloc_common.o $(PROXY)/reloc_radio-proxy.o -o radio-proxy
 
-.PHONY: $(CLIENT) $(PROXY) all clean
+.PHONY: $(CLIENT) $(PROXY) $(COMMON) all clean
 
 
 $(CLIENT):
@@ -25,9 +21,12 @@ $(CLIENT):
 $(PROXY):
 	$(MAKE) CXX=$(CXX) CXXFLAGS="$(CXXFLAGS)" -C $(PROXY)
 
+$(COMMON):
+	$(MAKE) CXX=$(CXX) CXXFLAGS="$(CXXFLAGS)" -C $(COMMON)
+
+
 clean:
-	rm radio-client
-	rm radio-proxy
+	rm -f radio-client radio-proxy 
 	$(MAKE) -C $(CLIENT) clean
 	$(MAKE) -C $(PROXY) clean
-
+	$(MAKE) -C $(COMMON) clean

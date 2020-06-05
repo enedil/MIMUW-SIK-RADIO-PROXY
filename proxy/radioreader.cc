@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <cerrno>
 #include <signal.h>
-#include "error.h"
+#include "../common/error.h"
 #include "radioreader.h"
 
 static volatile sig_atomic_t interrupt_occured = 0;
