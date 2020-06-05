@@ -12,8 +12,8 @@ static void loop(int sockfd, int pipefd) {
     fds.fd = pipefd;
     while (true) {
         try {
-            uint8_t dummydata[1] = {};
-            Message::sendMessage(sockfd, MessageType::KEEPALIVE, dummydata, dummydata, std::get<sockaddr_in>(msg));
+            uint8_t dummy[1] = {};
+            Message::sendMessage(sockfd, MessageType::KEEPALIVE, dummy, dummy, std::get<sockaddr_in>(msg));
         } catch (const std::bad_variant_access&) {
             if (std::get<Command>(msg) == Command::Stop) {
                 return;

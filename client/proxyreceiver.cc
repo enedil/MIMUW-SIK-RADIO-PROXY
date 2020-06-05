@@ -1,8 +1,6 @@
 #include <thread>
-#include <optional>
 #include <unistd.h>
 #include <poll.h>
-#include <vector>
 #include "proxyreceiver.h"
 #include "telnetserver.h"
 #include "message.h"

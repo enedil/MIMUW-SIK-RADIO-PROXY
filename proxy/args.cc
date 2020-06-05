@@ -36,8 +36,8 @@ unsigned parseUnsigned(const char* str) {
         }
     }
     unsigned u;
-    if (sscanf(str, "%u", &u) != 1 || u == 0)
-        throw std::invalid_argument("port shall be a nonnegative integer");
+    if (sscanf(str, "%u", &u) != 1)
+        throw std::invalid_argument("uncorrect number");
     return u;
 }
 }

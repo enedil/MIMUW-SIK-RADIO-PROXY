@@ -38,14 +38,14 @@ class RadioSender {
     using clock = std::chrono::system_clock;
     using time_point = clock::time_point;
 public:
-    RadioSender(unsigned port, std::optional<std::string> broadcastAddr, unsigned timeout);
+    RadioSender(unsigned port, std::optional<std::string> multicastAddr, unsigned timeout);
     int sendrecvLoop(RadioReader& reader);
     ~RadioSender();
 private:
     ip_mreq ip_mreq_;
     unsigned timeout;
     UdpSocket sock;
-    bool isBroadcasted;
+    bool isMulticasted;
     std::mutex clientsMutex;
     std::unordered_map<sockaddr_in, time_point> clients;
     void controller(RadioReader& reader);

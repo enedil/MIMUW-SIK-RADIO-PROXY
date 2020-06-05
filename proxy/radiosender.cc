@@ -1,31 +1,16 @@
 #include <cstring>
-#include <iostream>
 #include "../common/error.h"
 #include "radiosender.h"
 
-static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size);
+namespace {
 
-RadioSender::RadioSender(unsigned port, std::optional<std::string> broadcastAddr, unsigned timeout) :
-    timeout(timeout), isBroadcasted(broadcastAddr) {
-        if (broadcastAddr) {
-            ip_mreq_.imr_interface.s_addr = htonl(INADDR_ANY);
-            if (inet_aton(broadcastAddr.value().c_str(), &ip_mreq_.imr_multiaddr) == 0)
-                throw std::domain_error("inet_aton: invalid multicast adddress");
-            sock.setSockOpt(IPPROTO_IP, IP_ADD_MEMBERSHIP, ip_mreq_);
-            sock.setSockOpt(IPPROTO_IP, IP_MULTICAST_TTL, 16);
-        }
-        sockaddr_in local_address;
-        local_address.sin_family = AF_INET;
-        local_address.sin_addr.s_addr = htonl(INADDR_ANY);
-        local_address.sin_port = htons(port);
-        sock.bind(local_address);
-}
-
-
-RadioSender::~RadioSender() {
-    if (isBroadcasted)
-      if (setsockopt(sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &ip_mreq_, sizeof ip_mreq_) != 0)
-          abort();
+std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size) {
+    if (size >= std::numeric_limits<uint16_t>::max())
+        throw std::range_error("size >= std::numeric_limits<uint16_t>::max()");
+    std::array<uint16_t, 2> output;
+    output[0] = htons(static_cast<uint16_t>(type));
+    output[1] = htons(size);
+    return output;
 }
 
 class RAIIMsghdr {
@@ -54,14 +39,28 @@ msghdr RAIIMsghdr::get() {
     ret.msg_iovlen = scattergather_array.size();
     return ret;
 }
+}
 
-static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size) {
-    if (size >= std::numeric_limits<uint16_t>::max())
-        throw std::range_error("size >= std::numeric_limits<uint16_t>::max()");
-    std::array<uint16_t, 2> output;
-    output[0] = htons(static_cast<uint16_t>(type));
-    output[1] = htons(size);
-    return output;
+RadioSender::RadioSender(unsigned port, std::optional<std::string> multicastAddr, unsigned timeout) :
+    timeout(timeout), isMulticasted(multicastAddr) {
+        if (multicastAddr) {
+            ip_mreq_.imr_interface.s_addr = htonl(INADDR_ANY);
+            if (inet_aton(multicastAddr.value().c_str(), &ip_mreq_.imr_multiaddr) == 0)
+                throw std::domain_error("inet_aton: invalid multicast adddress");
+            sock.setSockOpt(IPPROTO_IP, IP_ADD_MEMBERSHIP, ip_mreq_);
+            sock.setSockOpt(IPPROTO_IP, IP_MULTICAST_TTL, 16);
+        }
+        sockaddr_in local_address;
+        local_address.sin_family = AF_INET;
+        local_address.sin_addr.s_addr = htonl(INADDR_ANY);
+        local_address.sin_port = htons(port);
+        sock.bind(local_address);
+}
+
+
+RadioSender::~RadioSender() {
+    if (isMulticasted)
+        sock.setSockOpt(IPPROTO_IP, IP_DROP_MEMBERSHIP, ip_mreq_);
 }
 
 void RadioSender::sendData(MsgType type, std::vector<uint8_t> const& data, std::optional<sockaddr_in> address) {
@@ -79,7 +78,11 @@ void RadioSender::sendData(MsgType type, uint8_t const* begin, uint8_t const* en
 void RadioSender::sendToAClient(msghdr msghdr, sockaddr_in address) {
     msghdr.msg_name = reinterpret_cast<void*>(&address);
     msghdr.msg_namelen = sizeof(address);
-    auto r = sendmsg(sock, &msghdr, 0);
+    ssize_t r = -1;
+    errno = EAGAIN;
+    while (r < 0 && errno == EAGAIN) {
+        r = sendmsg(sock, &msghdr, 0);
+    }
     if (r < 0)
         syserr("sendmsg");
 }
@@ -124,11 +127,13 @@ int RadioSender::sendrecvLoop(RadioReader& reader) {
 
 void RadioSender::controller(RadioReader& reader) {
     sockaddr_in clientAddress;
+    sockaddr* addrPtr = reinterpret_cast<sockaddr*>(&clientAddress);
     socklen_t sendToAClientLen = sizeof(clientAddress);
     while (true) {
         uint16_t type;
-        if (recvfrom(sock, &type, sizeof(type), 0, reinterpret_cast<sockaddr*>(&clientAddress), &sendToAClientLen) < static_cast<ssize_t>(sizeof(type))) {
-            std::cerr << "recvfrom bad" << "\n";
+        ssize_t size = sizeof(type);
+        if (recvfrom(sock, &type, size, 0, addrPtr, &sendToAClientLen) < size) {
+            continue; // drop packet
         }
         type = ntohs(type);
         if (type == DISCOVER) {
