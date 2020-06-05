@@ -47,9 +47,7 @@ bool RadioReader::init() {
         "User-Agent: SIK Proxy\r\n"
         "Accept: */*\r\n"
         "Icy-Metadata: " + (metadata ? "1" : "0") + "\r\n\r\n";
-    if (!sendAll(query)) {
-        return false;
-    }
+    fd.sendAll(query.c_str(), query.length());
     std::string headers = "";
     if (!readHeaders(headers)) {
         return false;
@@ -70,7 +68,6 @@ bool RadioReader::readHeaders(std::string& output) {
         }
     }
     return false;
-    //throw std::system_error { std::error_code(errno, std::system_category()), "incomplete read" };
 }
 
 void RadioReader::setTimeout() {
@@ -118,7 +115,7 @@ std::string RadioReader::description() {
 
 
 std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
-    decltype(readChunk()) ret = {INTERRUPT, buffer};
+    std::pair<ChunkType, const std::vector<uint8_t>&> ret = {INTERRUPT, buffer};
     try {
         if (interrupt_occured) {
             return ret;
@@ -128,7 +125,7 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
             if (metadata) {
                 ret.first = ICY_METADATA;
                 uint8_t metadataLength = 0;
-                auto r = read(fd, &metadataLength, sizeof(metadataLength));
+                ssize_t r = read(fd, &metadataLength, sizeof(metadataLength));
                 if (r < 0)
                     throw FatalCondition("read");
                 if (r != sizeof(metadataLength))
@@ -143,7 +140,7 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
         }
         buffer.resize(std::min(metaint - progress, maxPacketSize));
         setTimeout();
-        auto sz = read(fd, buffer.data(), buffer.size());
+        ssize_t sz = read(fd, buffer.data(), buffer.size());
         if (sz < 0) {
             std::cerr << strerror(errno);
             throw FatalCondition("short or bad read");
@@ -163,24 +160,10 @@ int RadioReader::readAll(std::vector<uint8_t>& data) {
     uint8_t* start = data.data();
     uint8_t* end = data.data() + data.size();
     while (start < end) {
-        auto r = read(fd, start, end-start);
+        ssize_t r = read(fd, start, end-start);
         if (r <= 0)
             return false;
         start += r;
-    }
-    return true;
-}
-
-bool RadioReader::sendAll(const std::string& data) {
-    size_t size = data.size();
-    const char* ptr = data.c_str();
-    while (size > 0) {
-        auto sent = write(fd, ptr, size);
-        if (sent <= 0) {
-            return false;
-        }
-        size -= static_cast<decltype(size)>(sent);
-        ptr += sent;
     }
     return true;
 }

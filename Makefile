@@ -1,4 +1,4 @@
-CXX		 = g++
+CXX		 = time g++
 CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -g3 -O2 -pthread 
 
 #CXXFLAGS += -fsanitize=undefined,address
@@ -16,13 +16,13 @@ all: $(CLIENT) $(PROXY) $(COMMON)
 
 
 $(CLIENT):
-	$(MAKE) CXX=$(CXX) CXXFLAGS="$(CXXFLAGS)" -C $(CLIENT)
+	$(MAKE) CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS)" -C $(CLIENT)
 
 $(PROXY):
-	$(MAKE) CXX=$(CXX) CXXFLAGS="$(CXXFLAGS)" -C $(PROXY)
+	$(MAKE) CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS)" -C $(PROXY)
 
 $(COMMON):
-	$(MAKE) CXX=$(CXX) CXXFLAGS="$(CXXFLAGS)" -C $(COMMON)
+	$(MAKE) CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS)" -C $(COMMON)
 
 
 clean:

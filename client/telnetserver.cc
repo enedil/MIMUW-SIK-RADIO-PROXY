@@ -1,8 +1,10 @@
+#include <poll.h>
 #include <iostream>
 #include <algorithm>
 #include <exception>
 #include <ext/stdio_filebuf.h>
 #include <cstring>
+#include <istream>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <signal.h>
@@ -10,15 +12,14 @@
 #include "../common/error.h"
 #include "message.h"
 #include "telnetserver.h"
+#include "cyclicbuffer.h"
 
 namespace {
-volatile sig_atomic_t interrupt_occured;
-void sigint_handler([[maybe_unused]] int signo) {
-    interrupt_occured = 1;
-}
-}
+    volatile sig_atomic_t interrupt_occured;
+    void sigint_handler([[maybe_unused]] int signo) {
+        interrupt_occured = 1;
+    }
 
-namespace {
     class Menu {
     public:
         Menu(std::mutex& mtx, std::vector<TelnetServer::Proxy>& proxies);
@@ -71,7 +72,7 @@ namespace {
         {
             std::scoped_lock<std::mutex> lock(mtx);
             for (size_t i = 0; i < proxies.size(); ++i) {
-                output << proxies[i].name;
+                output << "Przekaźnik:\t" << proxies[i].name;
                 if (position == i+1)
                     output << star;
                 output << CLRF;
@@ -86,14 +87,23 @@ namespace {
         output.flush();
     }
 
-    bool endswith(std::string const& first, std::string const& second) {
-        if (first.length() < second.length())
-            return false;
-        for (size_t i = 0; i < second.length(); ++i) {
-            if (first[first.size()-i-1] != second[second.size()-i-1])
-                return false;
+    bool waitUntilReady(int filedes, short events, int timeout = 50) {
+        pollfd fd { .fd = filedes, .events = events, .revents = 0 };
+        int rv = poll(&fd, 1, timeout);
+        if (rv < 0 && errno == EINTR && interrupt_occured)
+            throw Interrupt();
+        if (rv < 0 || (fd.revents & POLLERR))
+            syserr("poll");
+        return rv == 1;
+    }
+
+    int timedGetChar(std::istream& input, int filedes, char& c, int timeout = 50) {
+        if (input.rdbuf()->in_avail() <= 0) {
+            bool rv = waitUntilReady(filedes, POLLIN, timeout);
+            if (!rv)
+                return -1;
         }
-        return true;
+        return static_cast<int>(static_cast<bool>(input.get(c)));
     }
 }
 
@@ -117,7 +127,7 @@ TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : 
 }
 
 void TelnetServer::discover(std::optional<sockaddr_in>&& recepient) {
-    uint8_t dummy[1];
+    uint8_t dummy[1] = {0};
     if (recepient)
         Message::sendMessage(udpSock, DISCOVER, dummy, dummy, recepient.value()); 
     else
@@ -126,6 +136,10 @@ void TelnetServer::discover(std::optional<sockaddr_in>&& recepient) {
 
 void TelnetServer::loop() {
     while (true) {
+        if (interrupt_occured)
+            return;
+        if (!waitUntilReady(listenerSock, POLLIN))
+            continue;
         int telnetSock = accept(listenerSock, NULL, NULL);
         if (telnetSock == -1)
             syserr("accept");
@@ -150,22 +164,35 @@ bool TelnetServer::handleConnection(int sockin) {
     telnetout << telnetCharacterMode;
     telnetout.flush();
 
-    std::string cyclicBuffer("\xff", 3);
+    CyclicBuffer cyclicBuffer(3);
     char c;
     Menu menu(availableProxiesMutex, availableProxies);
-    menu.draw(telnetout, "");
-    while (telnetin.get(c)) {
-        cyclicBuffer = cyclicBuffer.substr(1, cyclicBuffer.length()-1) + c;
-        bool changed = false;
-        if (endswith(cyclicBuffer, CSI + "A")) {
+    int v;
+    bool changed = true;
+    while ((v = timedGetChar(telnetin, sockin, c)) != 0) {
+        if (changed) {
+            std::string s;
+            {
+                std::lock_guard<std::mutex> lock(metadataMutex);
+                s = metadata;
+            }
+            menu.draw(telnetout, s);
+        }
+        if (interrupt_occured)
+            return false;
+        if (v == -1)
+            continue;
+        cyclicBuffer.append(c);
+        changed = false;
+        if (cyclicBuffer.endsWith(CSI + "A")) {
             menu.arrowUp();
             changed = true;
         }
-        else if (endswith(cyclicBuffer, CSI + "B")) {
+        else if (cyclicBuffer.endsWith(CSI + "B")) {
             menu.arrowDown();
             changed = true;
         }
-        else if (endswith(cyclicBuffer, RETURN)) {
+        else if (cyclicBuffer.endsWith(RETURN)) {
             changed = true;
             std::scoped_lock<std::mutex, std::mutex, std::mutex> lock(availableProxiesMutex, currentProxyMutex, metadataMutex);
             size_t position = menu.getPosition(); 
@@ -191,14 +218,6 @@ bool TelnetServer::handleConnection(int sockin) {
             }
         }
 
-        if (changed) {
-            std::string s;
-            {
-                std::lock_guard<std::mutex> lock(metadataMutex);
-                s = metadata;
-            }
-            menu.draw(telnetout, s);
-        }
     }
     return true;
 }
