@@ -1,14 +1,13 @@
 #include <iostream>
 #include <exception>
 #include <netinet/in.h>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 #include <sys/types.h>
 #include <system_error>
-#include <regex>
 #include <netdb.h>
 #include <unistd.h>
-#include <cerrno>
 #include <signal.h>
 #include "../common/error.h"
 #include "radioreader.h"
@@ -78,17 +77,16 @@ void RadioReader::setTimeout() {
 }
 
 bool RadioReader::parseHeaders(const std::string& headers) {
-    std::regex line_regex("([^(\\r\\n)]*)\\r\\n");
-    auto lines_begin = 
-        std::sregex_token_iterator(headers.begin(), headers.end(), line_regex, 1);
-    auto lines_end = std::sregex_token_iterator();
-
-    for (auto i = lines_begin; i != lines_end; i++) {
-        std::string line = *i;
-        if (i == lines_begin) {
-            if (line != "ICY 200 OK" && line != "HTTP/1.0 200 OK" && line != "HTTP/1.1 200 OK")
-                return false;
-        }
+    std::stringstream s(headers);
+    std::string line;
+    if (!std::getline(s, line))
+        return false;
+    std::cerr << line <<"\n";
+    if (line != "ICY 200 OK\r" && line != "HTTP/1.0 200 OK\r" && line != "HTTP/1.1 200 OK\r")
+        return false;
+    while (std::getline(s, line)) {
+        if (line[line.length() - 1] == '\r')
+            line.resize(line.length() - 1);
         auto j = line.find(':');
         if (j == std::string::npos)
             continue;
@@ -142,7 +140,6 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
         setTimeout();
         ssize_t sz = read(fd, buffer.data(), buffer.size());
         if (sz < 0) {
-            std::cerr << strerror(errno);
             throw FatalCondition("short or bad read");
         }
         progress += static_cast<size_t>(sz);
