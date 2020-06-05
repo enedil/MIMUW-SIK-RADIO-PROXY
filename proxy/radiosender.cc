@@ -20,10 +20,6 @@ static std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size);
 
 RadioSender::RadioSender(unsigned port, std::optional<std::string> broadcastAddr, unsigned timeout) :
     timeout(timeout), isBroadcasted(broadcastAddr) {
-        sock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sock == -1) {
-            syserr("socket");
-        }
         if (broadcastAddr) {
             ip_mreq_.imr_interface.s_addr = htonl(INADDR_ANY);
             if (inet_aton(broadcastAddr.value().c_str(), &ip_mreq_.imr_multiaddr) == 0)
@@ -47,7 +43,6 @@ RadioSender::~RadioSender() {
     if (isBroadcasted)
       if (setsockopt(sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &ip_mreq_, sizeof ip_mreq_) != 0)
           abort();
-    close(sock);
 }
 
 class RAIIMsghdr {

@@ -31,20 +31,12 @@ void interrupt_handler([[maybe_unused]] int signo) {
 }
 
 RadioReader::RadioReader(std::string const& host, std::string const& port, sockaddr_in const& address, std::string& resource, unsigned timeout, bool metadata) :
-    timeout(timeout), metadata(metadata), host(host), port(port), resource(resource), progress(0) {
+    timeout(timeout), metadata(metadata), host(host), port(port), resource(resource), progress(0)  {
         if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
             syserr("signal");
         }
-        int status;
-        fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (fd < 0)
-            syserr("socket");
-
-        status = connect(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
+        int status = connect(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
         if (status != 0) {
-            int saved_errno = errno;
-            close(fd);
-            errno = saved_errno;
             syserr("connect");
         }
 }
@@ -194,8 +186,4 @@ bool RadioReader::sendAll(const std::string& data) {
         ptr += sent;
     }
     return true;
-}
-
-RadioReader::~RadioReader() {
-    close(fd);
 }

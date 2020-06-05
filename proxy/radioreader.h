@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <unistd.h>
 #include <mutex>
+#include "../common/socket.h"
 
 enum ChunkType {
     ICY_AUDIO = STDOUT_FILENO,
@@ -18,10 +19,9 @@ public:
     bool init();
     std::string description();
     std::pair<ChunkType, const std::vector<uint8_t>&> readChunk();
-    ~RadioReader();
 private:
     static constexpr size_t maxPacketSize = 0xffff - 4 /*SIKRadio*/ - 8 /*UDP*/ - 20 /*IP*/;
-    int fd;
+    TcpSocket fd;
     std::vector<uint8_t> buffer;
     unsigned timeout;
     std::string host;
