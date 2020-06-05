@@ -2,6 +2,7 @@
 #include <netinet/in.h>
 #include <ostream>
 #include <string>
+#include <exception>
 #include <mutex>
 #include <vector>
 #include <memory>
@@ -9,6 +10,11 @@
 #include "keepalive.h"
 #include "proxyreceiver.h"
 
+struct Interrupt : std::exception {
+    const char* what() const throw () {
+        return "Interrupted";
+    }
+};
 
 class TelnetServer {
 public:

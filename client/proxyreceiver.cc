@@ -9,13 +9,12 @@
 #include "error.h"
 
 ProxyReceiver::ProxyReceiver(int sockfd, TelnetServer* telnetServer, int timeout) : 
-    telnetServer(telnetServer), sockfd(sockfd), timeout(timeout * 1000 /* seconds to miliseconds */) {
+    telnetServer(telnetServer), sockfd(sockfd), timeout(timeout) {
     if (pipe(pipefd) != 0)
         syserr("pipe");
     std::thread t { &ProxyReceiver::loop, this };
     t.detach();
 }
-
 
 void ProxyReceiver::sendPipeMessage(PipeMessage const&& msg) {
     if (write(pipefd[1], &msg, sizeof(msg)) != sizeof(msg))
@@ -35,6 +34,7 @@ void ProxyReceiver::loop() {
     pollfd& sockEv = fds[1];
     pipeEv.fd = pipefd[0];
     sockEv.fd = sockfd;
+    timespec ts{timeout, 0};
     while (true) {
         std::optional<sockaddr_in> currentAddress = std::nullopt;
         if (std::holds_alternative<Command>(msg)) {
@@ -45,7 +45,7 @@ void ProxyReceiver::loop() {
         }
         pipeEv.events = POLLIN;
         sockEv.events = POLLIN;
-        int ret = poll(fds, std::size(fds), timeout);
+        int ret = ppoll(fds, std::size(fds), &ts, NULL);
         if (ret < 0 && errno == EINTR)
             continue;
         else if (ret < 0)
@@ -66,7 +66,13 @@ void ProxyReceiver::loop() {
             address.sin_port = htons(0);
             address.sin_family = AF_INET;
             MessageType type;
-            Message::recvMessage(sockEv.fd, type, data, address);
+            try {
+                Message::recvMessage(sockEv.fd, type, data, address);
+            } catch (...) {
+                continue; // drop packet
+            }
+            if (currentAddress && (address == currentAddress.value()))
+                ts = {timeout, 0};
             switch (type) {
             case AUDIO:
             case METADATA:

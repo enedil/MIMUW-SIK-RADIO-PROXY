@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <iostream>
 
+#include <system_error>
 #include <unistd.h>
 
 #include <cstring>
@@ -35,11 +36,7 @@ namespace Message {
         ssize_t rec;
         rec = sendmsg(sockfd, &m, 0);
         if (rec < 0)
-            throw "TODO"; //TODO
-        if (static_cast<size_t>(rec) != scattergather[0].iov_len + scattergather[1].iov_len) {
-            std::cerr << "err:" << rec << " " <<  strerror(errno) << "\n";
-            throw "TODO"; //TODO
-        }
+            throw std::system_error { errno, std::system_category(), "sendmsg" };
     }
 
     void recvMessage(int sockfd, MessageType& type, std::vector<uint8_t>& data, sockaddr_in& source) {
@@ -58,24 +55,23 @@ namespace Message {
         m.msg_namelen = sizeof(source);
         ssize_t received;
         if ((received = recvmsg(sockfd, &m, 0)) < 0)
-            throw std::length_error { "recvmsg failed" }; // TODO
+            throw std::length_error { "recvmsg failed" };
         if (static_cast<size_t>(received) < scattergather[0].iov_len) {
-            std::cerr << "received=" << received << ",iov_len=" << scattergather[0].iov_len << "\n";
-            throw std::length_error { "MESSAGE too short" }; // TODO
+            throw std::length_error { "MESSAGE too short" };
         }
         header[0] = ntohs(header[0]);
         header[1] = ntohs(header[1]);
         if (static_cast<size_t>(received) != scattergather[0].iov_len + header[1])
-            throw "TODO"; // TODO
+            throw std::range_error("incorrect declared length");
         data.resize(header[1]);
         switch (header[0]) {
-        //case DISCOVER:      type = DISCOVER;    break;
+        //case DISCOVER:      type = DISCOVER;    break; // not allowed
         case IAM:           type = IAM;         break;
-        //case KEEPALIVE:     type = KEEPALIVE;   break;
+        //case KEEPALIVE:     type = KEEPALIVE;   break; // not allowed
         case AUDIO:         type = AUDIO;       break;
         case METADATA:      type = METADATA;    break;
         default:
-            throw "TODO"; // TODO
+            throw std::domain_error { "Invalid operation" } ;
         }
     }
 }

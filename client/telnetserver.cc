@@ -1,13 +1,22 @@
+#include <iostream>
 #include <algorithm>
 #include <exception>
 #include <ext/stdio_filebuf.h>
 #include <cstring>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <signal.h>
 #include <unistd.h>
 #include "error.h"
 #include "message.h"
 #include "telnetserver.h"
+
+namespace {
+volatile sig_atomic_t interrupt_occured;
+void sigint_handler([[maybe_unused]] int signo) {
+    interrupt_occured = 1;
+}
+}
 
 namespace {
     class Menu {
@@ -52,7 +61,7 @@ namespace {
     void Menu::draw(std::ostream& output, std::string const& statusLine) {
         static const std::string star = " *";
         static const std::string CLRF = "\r\n";
-        static const std::string CSI = "\x1B[";
+        static const std::string CSI = "\x1b[";
         output << CSI << "2J"; // clear screen
         output << CSI << "H";  // go the beginning
         output << "Szukaj pośrednika";
@@ -90,6 +99,8 @@ namespace {
 
 
 TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : proxyAddr(proxyAddr) {
+    if (signal(SIGINT, sigint_handler) == SIG_ERR)
+        syserr("signal(SIGINT)");
     sockaddr_in localAddress;
     std::memset(&localAddress, 0, sizeof(localAddress));
     localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -141,7 +152,7 @@ void TelnetServer::loop() {
 
 bool TelnetServer::handleConnection(int sockin) {
     static const std::string telnetCharacterMode = "\377\375\042\377\373\001";
-    static const std::string CSI = "\x1B[";
+    static const std::string CSI = "\x1b[";
     static const std::string RETURN("\r\0", 2);
     int sockout = dup(sockin);
     if (sockout < 0) {
@@ -176,7 +187,12 @@ bool TelnetServer::handleConnection(int sockin) {
             size_t position = menu.getPosition(); 
             menu.resetPosition(); 
             if (position == 0) { // wyszukiwanie pośredników
-                discover();
+                try {
+                    availableProxies.clear();
+                    discover();
+                } catch (...) {
+                    return true;
+                }
             } else if (position == 1+availableProxies.size()) { // zakończ
                 return false;
             } else if (position <= availableProxies.size()) { // zmiana pośrednika
@@ -206,7 +222,10 @@ void TelnetServer::dropProxy() {
     std::scoped_lock<std::mutex, std::mutex, std::mutex> lock(availableProxiesMutex, currentProxyMutex, metadataMutex);
     metadata = "";
     if (currentProxy) {
-        std::remove(std::begin(availableProxies), std::end(availableProxies), *currentProxy.value());
+        availableProxies.erase(
+                std::remove(std::begin(availableProxies), 
+                    std::end(availableProxies),
+                    *currentProxy.value()));
     }
     currentProxy = std::nullopt;
     keepAlive->sendPipeMessage(Command::NoAddress);
