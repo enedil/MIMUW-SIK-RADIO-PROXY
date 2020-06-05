@@ -1,3 +1,4 @@
+#include <iostream>
 #include <exception>
 #include <netinet/in.h>
 #include <stdexcept>
@@ -24,13 +25,16 @@ struct FatalCondition : public std::exception {
     }
 };
 
-void interrupt_handler(int signo) {
+void interrupt_handler([[maybe_unused]] int signo) {
     interrupt_occured = 1;
 }
 }
 
 RadioReader::RadioReader(std::string const& host, std::string const& port, sockaddr_in const& address, std::string& resource, unsigned timeout, bool metadata) :
     timeout(timeout), metadata(metadata), host(host), port(port), resource(resource), progress(0) {
+        if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
+            syserr("signal");
+        }
         int status;
         fd = socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0)
@@ -46,9 +50,6 @@ RadioReader::RadioReader(std::string const& host, std::string const& port, socka
 }
 
 bool RadioReader::init() {
-    if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
-        return false;
-    }
     std::string query =
         "GET " + resource + " HTTP/1.0\r\n" 
         "Host: " + host + ":" + port + "\r\n" 
@@ -86,7 +87,7 @@ void RadioReader::setTimeout() {
     ts.tv_usec = 0;
     ts.tv_sec = timeout;
     if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &ts, sizeof(ts)) != 0) {
-        throw std::system_error { std::error_code(errno, std::system_category()), "setsockopt" };
+        syserr("setsockopt");
     }
 }
 
@@ -140,9 +141,9 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
                 uint8_t metadataLength = 0;
                 auto r = read(fd, &metadataLength, sizeof(metadataLength));
                 if (r < 0)
-                    syserr("read");
+                    throw FatalCondition("read");
                 if (r != sizeof(metadataLength))
-                    throw FatalCondition("short read");
+                    throw FatalCondition("short read of metadata");
                 else {
                     buffer.resize(16 * static_cast<size_t>(metadataLength));
                     if (!readAll(buffer))
@@ -154,8 +155,10 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
         buffer.resize(std::min(metaint - progress, maxPacketSize));
         setTimeout();
         auto sz = read(fd, buffer.data(), buffer.size());
-        if (sz < 0)
+        if (sz < 0) {
+            std::cerr << strerror(errno);
             throw FatalCondition("short or bad read");
+        }
         progress += static_cast<size_t>(sz);
         buffer.resize(static_cast<size_t>(sz));
         ret.first = ICY_AUDIO;
@@ -186,7 +189,6 @@ bool RadioReader::sendAll(const std::string& data) {
         auto sent = write(fd, ptr, size);
         if (sent <= 0) {
             return false;
-            //throw std::system_error { std::error_code(errno, std::system_category()), "write" };
         }
         size -= static_cast<decltype(size)>(sent);
         ptr += sent;
