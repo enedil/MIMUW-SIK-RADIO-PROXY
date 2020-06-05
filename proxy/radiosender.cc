@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <cassert>
 #include <sys/types.h>
-#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <vector>
 #include <cstdlib>
@@ -24,18 +23,14 @@ RadioSender::RadioSender(unsigned port, std::optional<std::string> broadcastAddr
             ip_mreq_.imr_interface.s_addr = htonl(INADDR_ANY);
             if (inet_aton(broadcastAddr.value().c_str(), &ip_mreq_.imr_multiaddr) == 0)
                 throw std::domain_error("inet_aton: invalid multicast adddress");
-            if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &ip_mreq_, sizeof ip_mreq_) < 0)
-                syserr("setsockopt IP_ADD_MEMBERSHIP");
-            int optval = 16;
-            if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, (void*)&optval, sizeof (optval)) < 0)
-                syserr("setsockopt IP_MULTICAST_TTL");
+            sock.setSockOpt(IPPROTO_IP, IP_ADD_MEMBERSHIP, ip_mreq_);
+            sock.setSockOpt(IPPROTO_IP, IP_MULTICAST_TTL, 16);
         }
         sockaddr_in local_address;
         local_address.sin_family = AF_INET;
         local_address.sin_addr.s_addr = htonl(INADDR_ANY);
         local_address.sin_port = htons(port);
-        if (bind(sock, reinterpret_cast<const sockaddr *>(&local_address), sizeof local_address) < 0)
-            syserr("bind: port already taken, or bind fails otherwise");
+        sock.bind(local_address);
 }
 
 

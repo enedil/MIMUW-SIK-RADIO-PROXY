@@ -9,6 +9,7 @@
 #include <optional>
 #include "keepalive.h"
 #include "proxyreceiver.h"
+#include "../common/socket.h"
 
 struct Interrupt : std::exception {
     const char* what() const throw () {
@@ -27,7 +28,6 @@ public:
         }
     };
     TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr);
-    ~TelnetServer();
     void loop();
     void dropProxy();
     void METADATA(std::vector<uint8_t> const& metadata);
@@ -35,8 +35,8 @@ public:
 private:
     void discover(std::optional<sockaddr_in>&& recepient = std::nullopt);
     bool handleConnection(int sock);
-    int listenerSock;
-    int udpSock;
+    TcpSocket listenerSock;
+    UdpSocket udpSock;
     sockaddr_in proxyAddr;
 
     std::mutex availableProxiesMutex;

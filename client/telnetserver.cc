@@ -106,20 +106,11 @@ TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : 
     localAddress.sin_addr.s_addr = htonl(INADDR_ANY);
     localAddress.sin_family = AF_INET;
     localAddress.sin_port = htons(port);
-    listenerSock = socket(AF_INET, SOCK_STREAM, 0);
-    if (listenerSock == -1)
-        syserr("socket() of listener");
-    if (bind(listenerSock, reinterpret_cast<const sockaddr*>(&localAddress), sizeof(localAddress)) < 0)
-        syserr("bind()");
-    if (listen(listenerSock, (1<<16)) < 0)
+    listenerSock.bind(localAddress);
+    if (listen(listenerSock, 1) < 0)
         syserr("listen");
 
-    udpSock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (udpSock == -1)
-        syserr("socket() udp");
-    int optval = 1;
-    if (setsockopt(udpSock, SOL_SOCKET, SO_BROADCAST, (void*)&optval, sizeof optval) < 0)
-        syserr("setsockopt broadcast");
+    udpSock.setSockOpt(SOL_SOCKET, SO_BROADCAST, 1);
 
     keepAlive = std::make_unique<KeepAlive>(udpSock);
     proxyReceiver = std::make_unique<ProxyReceiver>(udpSock, this, timeout);
@@ -131,13 +122,6 @@ void TelnetServer::discover(std::optional<sockaddr_in>&& recepient) {
         Message::sendMessage(udpSock, DISCOVER, dummy, dummy, recepient.value()); 
     else
         Message::sendMessage(udpSock, DISCOVER, dummy, dummy, proxyAddr); 
-}
-
-TelnetServer::~TelnetServer() {
-    if (shutdown(listenerSock, SHUT_RDWR) != 0)
-        syserr("shutdown");
-    if (close(listenerSock) != 0)
-        syserr("close");
 }
 
 void TelnetServer::loop() {

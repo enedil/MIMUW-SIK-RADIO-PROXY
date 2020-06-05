@@ -3,7 +3,6 @@
 #include <netinet/in.h>
 #include <stdexcept>
 #include <utility>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <system_error>
 #include <regex>
@@ -78,9 +77,7 @@ void RadioReader::setTimeout() {
     timeval ts;
     ts.tv_usec = 0;
     ts.tv_sec = timeout;
-    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &ts, sizeof(ts)) != 0) {
-        syserr("setsockopt");
-    }
+    fd.setSockOpt(SOL_SOCKET, SO_RCVTIMEO, ts);
 }
 
 bool RadioReader::parseHeaders(const std::string& headers) {
