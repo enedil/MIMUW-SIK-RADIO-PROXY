@@ -199,6 +199,7 @@ bool TelnetServer::handleConnection(int sockin) {
                 Proxy* proxy = &availableProxies[position-1];
                 currentProxy = proxy;
                 metadata = "";
+                discover(proxy->address);
                 keepAlive->sendPipeMessage(proxy->address);
                 proxyReceiver->sendPipeMessage(proxy->address);
             } else {
