@@ -1,5 +1,6 @@
 CXX		 = g++
-CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -g3 -O2 -pthread 
+CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -O2 -pthread 
+#CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -g3 -O2 -pthread 
 
 #CXXFLAGS += -fsanitize=undefined,address
 

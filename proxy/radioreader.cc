@@ -1,5 +1,6 @@
 #include <sstream>
 #include <signal.h>
+#include <stdexcept>
 #include "../common/error.h"
 #include "radioreader.h"
 
@@ -24,6 +25,7 @@ RadioReader::RadioReader(std::string const& host, std::string const& port, socka
         if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
             syserr("signal");
         }
+        setTimeout(SO_SNDTIMEO);
         int status = connect(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
         if (status != 0) {
             syserr("connect");
@@ -49,7 +51,7 @@ bool RadioReader::init() {
 bool RadioReader::readHeaders(std::string& output) {
     output = "";
     char c;
-    setTimeout();
+    setTimeout(SO_RCVTIMEO);
     while (read(fd, &c, 1) == 1) {
         output += c;
         if (output.length() >= 4 && output.substr(output.length() - 4, 4) == "\r\n\r\n") {
@@ -60,11 +62,13 @@ bool RadioReader::readHeaders(std::string& output) {
     return false;
 }
 
-void RadioReader::setTimeout() {
+void RadioReader::setTimeout(int type) {
+    if (type != SO_SNDTIMEO && type != SO_RCVTIMEO)
+        throw std::invalid_argument("type != SO_SNDTIMEO && type != SO_RCVTIMEO");
     timeval ts;
     ts.tv_usec = 0;
     ts.tv_sec = timeout;
-    fd.setSockOpt(SOL_SOCKET, SO_RCVTIMEO, ts);
+    fd.setSockOpt(SOL_SOCKET, type, ts);
 }
 
 bool RadioReader::parseHeaders(const std::string& headers) {
@@ -130,7 +134,7 @@ std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
             }
         }
         buffer.resize(std::min(metaint - progress, maxPacketSize));
-        setTimeout();
+        setTimeout(SO_RCVTIMEO);
         ssize_t sz = read(fd, buffer.data(), buffer.size());
         if (sz < 0) {
             throw FatalCondition("short or bad read");

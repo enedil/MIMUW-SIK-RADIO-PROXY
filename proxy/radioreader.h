@@ -33,7 +33,7 @@ private:
     bool readHeaders(std::string& output);
     bool parseHeaders(const std::string& headers);
     std::unordered_map<std::string, std::string> icyOptions;
-    void setTimeout();
+    void setTimeout(int type);
     uint64_t metaint;
     size_t progress;
 };

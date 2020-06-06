@@ -1,3 +1,4 @@
+#include <iostream>
 #include <cstring>
 #include "../common/error.h"
 #include "radiosender.h"
@@ -140,7 +141,11 @@ void RadioSender::controller(RadioReader& reader) {
             auto desc = reader.description();
             auto begin = reinterpret_cast<const uint8_t*>(desc.c_str());
             auto end = begin + desc.length();
-            sendData(IAM, begin, end, clientAddress);
+            try {
+                sendData(IAM, begin, end, clientAddress);
+            } catch (std::system_error& exc) {
+                std::cerr << exc;
+            }
         }
         if (type == DISCOVER || type == KEEPALIVE) {
             std::lock_guard<std::mutex> lock(clientsMutex);
