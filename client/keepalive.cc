@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "message.h"
 #include "keepalive.h"
+#include "../common/message.h"
 #include "../common/error.h"
 
 static void loop(int sockfd, int pipefd) {
@@ -13,12 +14,13 @@ static void loop(int sockfd, int pipefd) {
     PipeMessage msg = Command::NoAddress;
     pollfd pollWatchedFd;
     pollWatchedFd.fd = pipefd;
+    std::vector<uint8_t> dummy(0);
+    Message message(sockfd, dummy);
     while (true) {
         // If there's some address, then send KEEPALIVE.
         try {
             // Address shall be nonnull.
-            uint8_t dummy[1] = {};
-            Message::sendMessage(sockfd, MessageType::KEEPALIVE, dummy, dummy, std::get<sockaddr_in>(msg));
+            message.sendMessage(MessageType::KEEPALIVE, std::get<sockaddr_in>(msg));
         } catch (const std::bad_variant_access&) {
             if (std::get<Command>(msg) == Command::Stop)
                 return;

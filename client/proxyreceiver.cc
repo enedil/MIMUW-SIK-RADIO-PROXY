@@ -4,7 +4,9 @@
 #include "proxyreceiver.h"
 #include "telnetserver.h"
 #include "message.h"
+#include "../common/message.h"
 #include "../common/error.h"
+#include "../common/address.h"
 
 ProxyReceiver::ProxyReceiver(int sockfd, TelnetServer* telnetServer, int timeout) : 
     telnetServer(telnetServer), sockfd(sockfd), timeout(timeout) {
@@ -27,6 +29,7 @@ void ProxyReceiver::receivePipeMessage(PipeMessage& msg) {
 void ProxyReceiver::loop() {
     PipeMessage msg = Command::NoAddress;
     std::vector<uint8_t> data;
+    Message message(sockfd, data);
     pollfd fds[2];
     pollfd& pipeEv = fds[0];
     pollfd& sockEv = fds[1];
@@ -65,7 +68,7 @@ void ProxyReceiver::loop() {
             address.sin_family = AF_INET;
             MessageType type;
             try {
-                Message::recvMessage(sockEv.fd, type, data, address);
+                message.recvMessage(type, address);
             } catch (...) {
                 continue; // drop packet
             }

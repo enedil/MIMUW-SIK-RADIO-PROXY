@@ -22,10 +22,6 @@ public:
     struct Proxy {
         std::string name;
         sockaddr_in address;
-        friend
-        constexpr bool operator==(const Proxy& lhs, const Proxy& rhs) {
-            return lhs.address == rhs.address && lhs.name == rhs.name;
-        }
     };
     TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr);
     void loop();

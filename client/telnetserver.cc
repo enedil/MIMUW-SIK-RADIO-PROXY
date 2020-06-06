@@ -10,6 +10,8 @@
 #include <signal.h>
 #include <unistd.h>
 #include "../common/error.h"
+#include "../common/address.h"
+#include "../common/message.h"
 #include "message.h"
 #include "telnetserver.h"
 #include "cyclicbuffer.h"
@@ -26,7 +28,7 @@ namespace {
         void resetPosition();
         void arrowUp();
         void arrowDown();
-        void draw(std::ostream& output, std::string const& statusLine);
+        void draw(std::ostream& output, std::string const& statusLine, size_t currentIndex);
         size_t getPosition();
     private:
         std::mutex& mtx;
@@ -59,27 +61,37 @@ namespace {
             position += 1;
     }
 
-    void Menu::draw(std::ostream& output, std::string const& statusLine) {
-        static const std::string star = " *";
+    void Menu::draw(std::ostream& output, std::string const& statusLine, size_t currentIndex) {
         static const std::string CLRF = "\r\n";
         static const std::string CSI = "\x1b[";
+        static const std::string COLOR_ON = CSI + "32;1m";
+        static const std::string COLOR_OFF = CSI + "0m";
         output << CSI << "2J"; // clear screen
         output << CSI << "H";  // go the beginning
+        if (position == 0)
+            output << COLOR_ON;
         output << "Szukaj pośrednika";
         if (position == 0)
-            output << star;
+            output << COLOR_OFF;
         output << CLRF;
         {
             std::scoped_lock<std::mutex> lock(mtx);
             for (size_t i = 0; i < proxies.size(); ++i) {
-                output << "Przekaźnik:\t" << proxies[i].name;
+                output << "Przekaźnik:\t";
                 if (position == i+1)
-                    output << star;
+                    output << COLOR_ON;
+                output << proxies[i].name;
+                if (i == currentIndex)
+                    output << "*";
+                if (position == i+1)
+                    output << COLOR_OFF;
                 output << CLRF;
             }
+            if (position == 1+proxies.size())
+                output << COLOR_ON;
             output << "Zakończ połączenie";
             if (position == 1+proxies.size())
-                output << star;
+                output << COLOR_OFF;
             output << CLRF;
         }
         if (!statusLine.empty())
@@ -105,7 +117,12 @@ namespace {
         }
         return static_cast<int>(static_cast<bool>(input.get(c)));
     }
+
+    constexpr bool operator==(TelnetServer::Proxy const& lhs, TelnetServer::Proxy const& rhs) {
+        return lhs.address == rhs.address && lhs.name == rhs.name;
+    }
 }
+
 
 
 TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : proxyAddr(proxyAddr) {
@@ -127,11 +144,12 @@ TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : 
 }
 
 void TelnetServer::discover(std::optional<sockaddr_in>&& recepient) {
-    uint8_t dummy[1] = {0};
+    std::vector<uint8_t> dummy(0);
+    Message msg(udpSock, dummy);
     if (recepient)
-        Message::sendMessage(udpSock, MessageType::DISCOVER, dummy, dummy, recepient.value()); 
+        msg.sendMessage(MessageType::DISCOVER, recepient.value()); 
     else
-        Message::sendMessage(udpSock, MessageType::DISCOVER, dummy, dummy, proxyAddr); 
+        msg.sendMessage(MessageType::DISCOVER, proxyAddr); 
 }
 
 void TelnetServer::loop() {
@@ -171,12 +189,21 @@ bool TelnetServer::handleConnection(int sockin) {
     bool changed = true;
     while ((v = timedGetChar(telnetin, sockin, c)) != 0) {
         if (changed) {
+            ssize_t i;
             std::string s;
             {
-                std::lock_guard<std::mutex> lock(metadataMutex);
+                std::scoped_lock<std::mutex, std::mutex, std::mutex> lock(
+                        metadataMutex, 
+                        currentProxyMutex, 
+                        availableProxiesMutex);
                 s = metadata;
+                if (currentProxy) {
+                    i = currentProxy.value() - availableProxies.data();
+                } else {
+                    i = -1;
+                }
             }
-            menu.draw(telnetout, s);
+            menu.draw(telnetout, s, i);
         }
         if (interrupt_occured)
             return false;
@@ -227,9 +254,9 @@ void TelnetServer::dropProxy() {
     metadata = "";
     if (currentProxy) {
         availableProxies.erase(
-                std::remove(std::begin(availableProxies), 
+                std::remove_if(std::begin(availableProxies), 
                     std::end(availableProxies),
-                    *currentProxy.value()));
+                    [&](auto x) {return x == *currentProxy.value();}));
     }
     currentProxy = std::nullopt;
     keepAlive->sendPipeMessage(Command::NoAddress);

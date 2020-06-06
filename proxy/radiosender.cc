@@ -8,9 +8,10 @@ namespace {
 std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size) {
     if (size >= std::numeric_limits<uint16_t>::max())
         throw std::range_error("size >= std::numeric_limits<uint16_t>::max()");
-    std::array<uint16_t, 2> output;
-    output[0] = htons(static_cast<uint16_t>(type));
-    output[1] = htons(size);
+    std::array<uint16_t, 2> output = {
+        htons(static_cast<uint16_t>(type)),
+        htons(size)
+    };
     return output;
 }
 

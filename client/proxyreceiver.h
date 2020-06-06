@@ -1,4 +1,5 @@
 #pragma once
+#include "../common/message.h"
 #include "message.h"
 
 class TelnetServer;

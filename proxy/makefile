@@ -2,6 +2,8 @@ TARGET  = reloc_radio-proxy.o
 OBJFILES = radio-proxy.o args.o radioreader.o radiosender.o stdoutsender.o
 COMMON = ../common
 ERRORH = $(COMMON)/error.h
+SOCKETH = $(COMMON)/socket.h
+ADDRESSH = $(COMMON)/address.h
 
 all: $(TARGET)
 
