@@ -129,9 +129,9 @@ TelnetServer::TelnetServer(unsigned port, int timeout, sockaddr_in proxyAddr) : 
 void TelnetServer::discover(std::optional<sockaddr_in>&& recepient) {
     uint8_t dummy[1] = {0};
     if (recepient)
-        Message::sendMessage(udpSock, DISCOVER, dummy, dummy, recepient.value()); 
+        Message::sendMessage(udpSock, MessageType::DISCOVER, dummy, dummy, recepient.value()); 
     else
-        Message::sendMessage(udpSock, DISCOVER, dummy, dummy, proxyAddr); 
+        Message::sendMessage(udpSock, MessageType::DISCOVER, dummy, dummy, proxyAddr); 
 }
 
 void TelnetServer::loop() {

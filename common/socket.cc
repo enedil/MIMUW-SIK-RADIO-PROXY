@@ -1,3 +1,4 @@
+#include <iostream>
 #include <string>
 #include <unistd.h>
 #include "error.h"
@@ -14,7 +15,8 @@ void Socket::bind(const sockaddr_in& address) {
 
 Socket::~Socket() {
     if (close(filedes) != 0)
-        syserr("closing filedes");
+        // As this is a destructor, we don't throw here.
+        std::cerr << "error closing socket: " << errno << "\n";
 }
 
 UdpSocket::UdpSocket() {

@@ -1,3 +1,4 @@
+#include <iostream>
 #include <thread>
 #include <errno.h>
 #include <poll.h>
@@ -7,30 +8,33 @@
 #include "../common/error.h"
 
 static void loop(int sockfd, int pipefd) {
+    // msg holds current state of operation, either address of current proxy, NoAddress (lack of current proxy), or Stop, 
+    // which means stopping the thread.
     PipeMessage msg = Command::NoAddress;
-    pollfd fds;
-    fds.fd = pipefd;
+    pollfd pollWatchedFd;
+    pollWatchedFd.fd = pipefd;
     while (true) {
+        // If there's some address, then send KEEPALIVE.
         try {
+            // Address shall be nonnull.
             uint8_t dummy[1] = {};
             Message::sendMessage(sockfd, MessageType::KEEPALIVE, dummy, dummy, std::get<sockaddr_in>(msg));
         } catch (const std::bad_variant_access&) {
-            if (std::get<Command>(msg) == Command::Stop) {
+            if (std::get<Command>(msg) == Command::Stop)
                 return;
-            }
         }
-        fds.events = POLLIN;
-        fds.revents = 0;
+        pollWatchedFd.events = POLLIN;
+        // Wait 3.5 seconds for a command. If no command comes in, send another KEEPALIVE.
         timespec ts{3, 500'000'000};
-        int ret = ppoll(&fds, 1, &ts, NULL);
+        int ret = ppoll(&pollWatchedFd, 1, &ts, NULL);
         if (ret < 0 && errno != EINTR)
             syserr("poll");
         else if (ret < 0 && errno == EINTR)
             continue;
-        if (fds.revents & POLLIN) {
-            if (read(pipefd, &msg, sizeof(msg)) < static_cast<ssize_t>(sizeof(msg)))
+        if (pollWatchedFd.revents & POLLIN) {
+            if (read(pipefd, &msg, sizeof(msg)) != static_cast<ssize_t>(sizeof(msg)))
                 syserr("reading PipeMessage failed");
-        } else if (fds.revents & POLLERR) {
+        } else if (pollWatchedFd.revents & POLLERR) {
             syserr("POLLERR");
         }
     }
@@ -44,9 +48,13 @@ KeepAlive::KeepAlive(int sockfd) {
 }
 
 KeepAlive::~KeepAlive() {
+    // Instruct the thread to finish work.
     sendPipeMessage(Command::Stop);
-    close(pipefd[0]);
-    close(pipefd[1]);
+    // Close both ends of the pipe. No syserr are used in destructors.
+    if (close(pipefd[0]) != 0)
+        std::cerr << "closing pipe[0] failed with code " << errno;
+    if (close(pipefd[1]) != 0)
+        std::cerr << "closing pipe[1] failed with code " << errno;
 }
 
 void KeepAlive::sendPipeMessage(PipeMessage&& msg) {
