@@ -1,12 +1,12 @@
 #pragma once
 #include <netinet/in.h>
-#include <string>
 #include <optional>
+#include <string>
 
 // Parser of command line arguments for proxy.
 struct ProxyArguments {
     // Construct arguments basing on command line arguments.
-    ProxyArguments(int argc, char* const argv[]);
+    ProxyArguments(int argc, char *const argv[]);
     // Parsed address of ICY server.
     sockaddr_in address;
     // Host of ICY server.

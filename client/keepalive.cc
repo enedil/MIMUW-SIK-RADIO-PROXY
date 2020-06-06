@@ -1,16 +1,16 @@
-#include <iostream>
-#include <thread>
-#include <errno.h>
-#include <poll.h>
-#include <unistd.h>
-#include "message.h"
 #include "keepalive.h"
-#include "../common/message.h"
 #include "../common/error.h"
+#include "../common/message.h"
+#include "message.h"
+#include <errno.h>
+#include <iostream>
+#include <poll.h>
+#include <thread>
+#include <unistd.h>
 
 static void loop(int sockfd, int pipefd) {
-    // msg holds current state of operation, either address of current proxy, NoAddress (lack of current proxy), or Stop, 
-    // which means stopping the thread.
+    // msg holds current state of operation, either address of current proxy, NoAddress
+    // (lack of current proxy), or Stop, which means stopping the thread.
     PipeMessage msg = Command::NoAddress;
     pollfd pollWatchedFd;
     pollWatchedFd.fd = pipefd;
@@ -21,7 +21,7 @@ static void loop(int sockfd, int pipefd) {
         try {
             // Address shall be nonnull.
             message.sendMessage(MessageType::KEEPALIVE, std::get<sockaddr_in>(msg));
-        } catch (const std::bad_variant_access&) {
+        } catch (const std::bad_variant_access &) {
             if (std::get<Command>(msg) == Command::Stop)
                 return;
         }
@@ -45,7 +45,7 @@ static void loop(int sockfd, int pipefd) {
 KeepAlive::KeepAlive(int sockfd) {
     if (pipe(pipefd) != 0)
         syserr("pipe");
-    std::thread t { loop, sockfd, pipefd[0] };
+    std::thread t{loop, sockfd, pipefd[0]};
     t.detach();
 }
 
@@ -59,7 +59,7 @@ KeepAlive::~KeepAlive() {
         std::cerr << "closing pipe[1] failed with code " << errno;
 }
 
-void KeepAlive::sendPipeMessage(PipeMessage&& msg) {
+void KeepAlive::sendPipeMessage(PipeMessage &&msg) {
     if (write(pipefd[1], &msg, sizeof(msg)) != sizeof(msg))
         syserr("write on pipe");
 }

@@ -1,44 +1,47 @@
-#include <sstream>
-#include <signal.h>
-#include <stdexcept>
-#include "../common/error.h"
 #include "radioreader.h"
+#include "../common/error.h"
+#include <signal.h>
+#include <sstream>
+#include <stdexcept>
 
 static volatile sig_atomic_t interrupt_occured = 0;
 
 namespace {
 struct FatalCondition : public std::exception {
-    const char* reason;
-    FatalCondition(const char* reason) : reason(reason) {}
-	const char* what() const throw () {
-    	return reason;
-    }
+    const char *reason;
+    FatalCondition(const char *reason) : reason(reason) {}
+    const char *what() const throw() { return reason; }
 };
 
-void interrupt_handler([[maybe_unused]] int signo) {
-    interrupt_occured = 1;
-}
-}
+void interrupt_handler([[maybe_unused]] int signo) { interrupt_occured = 1; }
+} // namespace
 
-RadioReader::RadioReader(std::string const& host, std::string const& port, sockaddr_in const& address, std::string& resource, unsigned timeout, bool metadata) :
-    timeout(timeout), metadata(metadata), host(host), port(port), resource(resource), progress(0)  {
-        if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
-            syserr("signal");
-        }
-        setTimeout(SO_SNDTIMEO);
-        int status = connect(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address));
-        if (status != 0) {
-            syserr("connect");
-        }
+RadioReader::RadioReader(std::string const &host, std::string const &port,
+                         sockaddr_in const &address, std::string &resource,
+                         unsigned timeout, bool metadata)
+    : timeout(timeout), metadata(metadata), host(host), port(port), resource(resource),
+      progress(0) {
+    if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
+        syserr("signal");
+    }
+    setTimeout(SO_SNDTIMEO);
+    int status =
+        connect(fd, reinterpret_cast<const sockaddr *>(&address), sizeof(address));
+    if (status != 0) {
+        syserr("connect");
+    }
 }
 
 bool RadioReader::init() {
-    std::string query =
-        "GET " + resource + " HTTP/1.0\r\n" 
-        "Host: " + host + ":" + port + "\r\n" 
-        "User-Agent: SIK Proxy\r\n"
-        "Accept: */*\r\n"
-        "Icy-Metadata: " + (metadata ? "1" : "0") + "\r\n\r\n";
+    std::string query = "GET " + resource +
+                        " HTTP/1.0\r\n"
+                        "Host: " +
+                        host + ":" + port +
+                        "\r\n"
+                        "User-Agent: SIK Proxy\r\n"
+                        "Accept: */*\r\n"
+                        "Icy-Metadata: " +
+                        (metadata ? "1" : "0") + "\r\n\r\n";
     fd.sendAll(query.c_str(), query.length());
     std::string headers = "";
     if (!readHeaders(headers)) {
@@ -47,15 +50,14 @@ bool RadioReader::init() {
     return parseHeaders(headers);
 }
 
-
-bool RadioReader::readHeaders(std::string& output) {
+bool RadioReader::readHeaders(std::string &output) {
     output = "";
     char c;
     setTimeout(SO_RCVTIMEO);
     while (read(fd, &c, 1) == 1) {
         output += c;
         if (output.length() >= 4 && output.substr(output.length() - 4, 4) == "\r\n\r\n") {
-            output.resize(output.length()-2);
+            output.resize(output.length() - 2);
             return true;
         }
     }
@@ -71,12 +73,13 @@ void RadioReader::setTimeout(int type) {
     fd.setSockOpt(SOL_SOCKET, type, ts);
 }
 
-bool RadioReader::parseHeaders(const std::string& headers) {
+bool RadioReader::parseHeaders(const std::string &headers) {
     std::stringstream s(headers);
     std::string line;
     if (!std::getline(s, line))
         return false;
-    if (line != "ICY 200 OK\r" && line != "HTTP/1.0 200 OK\r" && line != "HTTP/1.1 200 OK\r")
+    if (line != "ICY 200 OK\r" && line != "HTTP/1.0 200 OK\r" &&
+        line != "HTTP/1.1 200 OK\r")
         return false;
     while (std::getline(s, line)) {
         if (line[line.length() - 1] == '\r')
@@ -84,11 +87,11 @@ bool RadioReader::parseHeaders(const std::string& headers) {
         auto j = line.find(':');
         if (j == std::string::npos)
             continue;
-        if (line.length() <= j+1)
+        if (line.length() <= j + 1)
             continue;
         if (line.substr(0, 4) != "icy-")
             continue;
-        icyOptions[line.substr(0, j)] = line.substr(j+1, line.length());
+        icyOptions[line.substr(0, j)] = line.substr(j + 1, line.length());
     }
     auto icymetaint = icyOptions.find("icy-metaint");
     if (icymetaint != icyOptions.end() and !metadata) {
@@ -105,14 +108,14 @@ std::string RadioReader::description() {
     return icyOptions["icy-description"] + ", " + icyOptions["icy-name"];
 }
 
-
-std::pair<ChunkType, std::vector<uint8_t>&> RadioReader::readChunk() {
-    std::pair<ChunkType, std::vector<uint8_t>&> ret = {INTERRUPT, buffer};
+std::pair<ChunkType, std::vector<uint8_t> &> RadioReader::readChunk() {
+    std::pair<ChunkType, std::vector<uint8_t> &> ret = {INTERRUPT, buffer};
     try {
         if (interrupt_occured) {
             return ret;
         }
-        // We finished chunk of data. Now it's time for metadata (skip metadata if not declared to come).
+        // We finished chunk of data. Now it's time for metadata (skip metadata if not
+        // declared to come).
         if (progress == metaint) {
             progress = 0;
             if (metadata) {
@@ -126,7 +129,8 @@ std::pair<ChunkType, std::vector<uint8_t>&> RadioReader::readChunk() {
                 else {
                     buffer.resize(16 * static_cast<size_t>(metadataLength));
                     try {
-                        fd.readAll(reinterpret_cast<char*>(buffer.data()), buffer.size());
+                        fd.readAll(reinterpret_cast<char *>(buffer.data()),
+                                   buffer.size());
                     } catch (...) {
                         throw FatalCondition("short read");
                     }
@@ -144,7 +148,7 @@ std::pair<ChunkType, std::vector<uint8_t>&> RadioReader::readChunk() {
         buffer.resize(static_cast<size_t>(sz));
         ret.first = ICY_AUDIO;
         return ret;
-    } catch (FatalCondition& exc) {
+    } catch (FatalCondition &exc) {
         if (interrupt_occured)
             return ret;
         throw;

@@ -1,28 +1,29 @@
+#include "args.h"
 #include <cstring>
 #include <getopt.h>
 #include <netdb.h>
-#include <unordered_map>
 #include <system_error>
-#include "args.h"
+#include <unordered_map>
 
 using namespace std::literals;
 
-Args::Args(int argc, char* argv[]) {
+Args::Args(int argc, char *argv[]) {
     // getopt option.
     int opt;
-    const char* host = NULL, *port = NULL;
+    const char *host = NULL, *port = NULL;
     // Mark seen options.
     std::unordered_map<int, bool> seen;
     seen[0] = true;
     while ((opt = getopt(argc, argv, "H:P:p:T:")) != -1) {
         seen[opt] = true;
-        switch(opt) {
+        switch (opt) {
         case 'H':
             // Proxy host.
             host = optarg;
             break;
         case 'P':
-            // Proxy port. To be used in getaddrinfo, that's why it's not parsed into a number.
+            // Proxy port. To be used in getaddrinfo, that's why it's not parsed into a
+            // number.
             port = optarg;
             break;
         case 'p':
@@ -45,12 +46,12 @@ Args::Args(int argc, char* argv[]) {
     }
     int status;
     addrinfo hints = {};
-    addrinfo* res;
+    addrinfo *res;
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_DGRAM;
     if (0 != (status = getaddrinfo(host, port, &hints, &res))) {
-        throw std::runtime_error { "getaddrinfo:"s + gai_strerror(status) };
+        throw std::runtime_error{"getaddrinfo:"s + gai_strerror(status)};
     }
-    proxyAddr = *reinterpret_cast<sockaddr_in*>(res->ai_addr);
+    proxyAddr = *reinterpret_cast<sockaddr_in *>(res->ai_addr);
     freeaddrinfo(res);
 }

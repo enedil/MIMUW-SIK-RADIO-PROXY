@@ -1,15 +1,14 @@
+#include "socket.h"
+#include "error.h"
 #include <iostream>
 #include <string>
 #include <unistd.h>
-#include "error.h"
-#include "socket.h"
 
-Socket::operator int() {
-    return filedes;
-}
+Socket::operator int() { return filedes; }
 
-void Socket::bind(const sockaddr_in& address) {
-    if (::bind(filedes, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0)
+void Socket::bind(const sockaddr_in &address) {
+    if (::bind(filedes, reinterpret_cast<const sockaddr *>(&address), sizeof(address)) <
+        0)
         syserr("bind()");
 }
 
@@ -31,8 +30,8 @@ TcpSocket::TcpSocket() {
         syserr("socket(UDP)");
 }
 
-void TcpSocket::sendAll(const char* data, size_t size) {
-    const char* ptr = data;
+void TcpSocket::sendAll(const char *data, size_t size) {
+    const char *ptr = data;
     while (size > 0) {
         ssize_t sent = write(filedes, ptr, size);
         if (sent <= 0)
@@ -42,10 +41,10 @@ void TcpSocket::sendAll(const char* data, size_t size) {
     }
 }
 
-void TcpSocket::readAll(char* data, size_t size) {
-    char* end = data + size;
+void TcpSocket::readAll(char *data, size_t size) {
+    char *end = data + size;
     while (data < end) {
-        ssize_t rcv = read(filedes, data, end-data);
+        ssize_t rcv = read(filedes, data, end - data);
         if (rcv <= 0)
             syserr("read");
         data += rcv;

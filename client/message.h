@@ -1,8 +1,8 @@
 #pragma once
-#include <netinet/in.h>
 #include <climits>
-#include <vector>
+#include <netinet/in.h>
 #include <variant>
+#include <vector>
 
 // Commands that can be sent to Keepalive thread and Receiver thread.
 enum class Command { NoAddress, Stop };
