@@ -12,6 +12,8 @@ int StdoutSender::sendrecvLoop(RadioReader& reader) {
             case ICY_METADATA:
                 totalWritten = 0;
                 while (totalWritten < buf.size()) {
+                    // ICY_AUDIO and ICY_METADATA are set correspondingly to constants
+                    // STDOUT_FILENO and STDERR_FILENO.
                     ret = write(type, buf.data() + totalWritten, buf.size() - totalWritten);
                     if (ret < 0)
                         syserr("write");

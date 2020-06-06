@@ -15,6 +15,7 @@
 using namespace std::literals;
 
 namespace {
+// Perform getaddrinfo, with result checking.
 sockaddr_in getAddress(const char* host, const char* port) {
     int status;
     addrinfo hints = {};
@@ -29,6 +30,8 @@ sockaddr_in getAddress(const char* host, const char* port) {
     return addr;
 }
 
+// Convert string of digits into an unsigned number. Do not accept neither leading,
+// nor trailing whitespace.
 unsigned parseUnsigned(const char* str) {
     for (size_t i = 0; str[i] != '\0'; ++i) {
         if (!std::isdigit(str[i])) {

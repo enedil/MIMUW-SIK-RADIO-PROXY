@@ -45,6 +45,7 @@ void RadioSender::sendToAllClients(Message& message, MessageType type) {
     for (auto& client : clients) {
         auto now = clock::now();
         auto diff = std::chrono::duration_cast<std::chrono::seconds>(now - client.second);
+        // If already exceeded timeout, drop client.
         if (diff.count() > timeout) {
             clients_copy.erase(client.first);
         } else {
@@ -63,10 +64,12 @@ int RadioSender::sendrecvLoop(RadioReader& reader) {
         auto [type, buf] = reader.readChunk();
         switch(type) {
         case ICY_AUDIO:
+            // Don't forward empty messages.
             if (buf.size() > 0)
                 sendData(AUDIO, buf, std::nullopt);
             break;
         case ICY_METADATA:
+            // Don't forward empty messages.
             if (buf.size() > 0)
                 sendData(METADATA, buf, std::nullopt);
             break;
@@ -101,8 +104,10 @@ void RadioSender::controller(RadioReader& reader) {
         }
         if (type == DISCOVER || type == KEEPALIVE) {
             std::lock_guard<std::mutex> lock(clientsMutex);
+            // Register client.
             if (type == DISCOVER)
                 clients[clientAddress] = clock::now();
+            // Update client, if was already registered.
             else {
                 auto it = clients.find(clientAddress);
                 if (it != clients.end())

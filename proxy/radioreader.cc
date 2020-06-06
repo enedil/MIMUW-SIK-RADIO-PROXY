@@ -96,7 +96,7 @@ bool RadioReader::parseHeaders(const std::string& headers) {
     } else if (icymetaint != icyOptions.end()) {
         metaint = std::stoul(icymetaint->second);
     } else {
-        metaint = 1e9;
+        metaint = 1e9; // Some big number.
     }
     return true;
 }
@@ -112,6 +112,7 @@ std::pair<ChunkType, std::vector<uint8_t>&> RadioReader::readChunk() {
         if (interrupt_occured) {
             return ret;
         }
+        // We finished chunk of data. Now it's time for metadata (skip metadata if not declared to come).
         if (progress == metaint) {
             progress = 0;
             if (metadata) {

@@ -22,6 +22,7 @@ namespace {
         interrupt_occured = 1;
     }
 
+    // Class for handling telnet menu.
     class Menu {
     public:
         Menu(std::mutex& mtx, std::vector<TelnetServer::Proxy>& proxies);
@@ -110,6 +111,7 @@ namespace {
     }
 
     int timedGetChar(std::istream& input, int filedes, char& c, int timeout = 50) {
+        // Do not wait, if istream already read all available data.
         if (input.rdbuf()->in_avail() <= 0) {
             bool rv = waitUntilReady(filedes, POLLIN, timeout);
             if (!rv)
@@ -170,6 +172,9 @@ bool TelnetServer::handleConnection(int sockin) {
     static const std::string telnetCharacterMode = "\377\375\042\377\373\001";
     static const std::string CSI = "\x1b[";
     static const std::string RETURN("\r\0", 2);
+    // If we operate on signle iostream object, we get EPIPE errors, as iostream, in order to
+    // synchronise writing and reading buffers, uses lseek, which is not supported on sockets.
+    // Therefore we duplicate the socket and use one for reading and second onefor writing.
     int sockout = dup(sockin);
     if (sockout < 0) {
         close(sockin);
