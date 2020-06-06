@@ -1,9 +1,7 @@
-CXX		 = g++
-CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -O2 -pthread 
-#CXXFLAGS = -std=c++2a -Wall -Wextra -Wpedantic -Wno-reorder -g3 -O2 -pthread 
-
-#CXXFLAGS += -fsanitize=undefined,address
-
+CXX		   = g++
+CXXVERSION = -std=c++2a
+CXXWARNS   = -Wall -Wextra -Wpedantic -Wno-reorder
+CXXFLAGS   = $(CXXVERSION) $(CXXWARNS) -g3 -O2 -pthread 
 
 CLIENT = client
 PROXY = proxy
