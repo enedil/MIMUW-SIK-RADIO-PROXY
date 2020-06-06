@@ -106,8 +106,8 @@ std::string RadioReader::description() {
 }
 
 
-std::pair<ChunkType, const std::vector<uint8_t>&> RadioReader::readChunk() {
-    std::pair<ChunkType, const std::vector<uint8_t>&> ret = {INTERRUPT, buffer};
+std::pair<ChunkType, std::vector<uint8_t>&> RadioReader::readChunk() {
+    std::pair<ChunkType, std::vector<uint8_t>&> ret = {INTERRUPT, buffer};
     try {
         if (interrupt_occured) {
             return ret;

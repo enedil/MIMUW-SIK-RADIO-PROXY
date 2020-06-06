@@ -12,15 +12,8 @@
 #include "radioreader.h"
 #include "../common/socket.h"
 #include "../common/address.h"
+#include "../common/message.h"
 
-
-enum MsgType {
-    DISCOVER = 1,
-    IAM = 2,
-    KEEPALIVE = 3,
-    AUDIO = 4,
-    METADATA = 6
-};
 
 class RadioSender {
     using clock = std::chrono::system_clock;
@@ -37,8 +30,7 @@ private:
     std::mutex clientsMutex;
     std::unordered_map<sockaddr_in, time_point> clients;
     void controller(RadioReader& reader);
-    void sendToAClient(msghdr msghdr, sockaddr_in address);
-    void sendToAllClients(msghdr msghdr);
-    void sendData(MsgType type, std::vector<uint8_t> const& data, std::optional<sockaddr_in> address);
-    void sendData(MsgType type, uint8_t const* begin, uint8_t const* end, std::optional<sockaddr_in> address);
+    void sendToAClient(Message& message, MessageType type, sockaddr_in address);
+    void sendToAllClients(Message& message, MessageType type);
+    void sendData(MessageType type, std::vector<uint8_t>& data, std::optional<sockaddr_in> address);
 };

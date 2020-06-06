@@ -1,47 +1,8 @@
+#include <algorithm>
 #include <iostream>
 #include <cstring>
 #include "../common/error.h"
 #include "radiosender.h"
-
-namespace {
-
-std::array<uint16_t, 2> encodeHeader(MsgType type, size_t size) {
-    if (size >= std::numeric_limits<uint16_t>::max())
-        throw std::range_error("size >= std::numeric_limits<uint16_t>::max()");
-    std::array<uint16_t, 2> output = {
-        htons(static_cast<uint16_t>(type)),
-        htons(size)
-    };
-    return output;
-}
-
-class RAIIMsghdr {
-public:
-    RAIIMsghdr(uint8_t const* begin, uint8_t const* end, MsgType type);
-    msghdr get();
-private:
-    std::array<iovec, 2> scattergather_array;
-    std::array<uint16_t, 2> header;
-};
-
-RAIIMsghdr::RAIIMsghdr(uint8_t const* begin, uint8_t const* end, MsgType type) {
-    if (end < begin)
-        throw std::range_error("end < begin");
-    header = encodeHeader(type, end-begin);
-    scattergather_array[0].iov_base = header.data();
-    scattergather_array[0].iov_len = header.size() * sizeof(uint16_t);
-    scattergather_array[1].iov_base = (void*)(begin);
-    scattergather_array[1].iov_len = end - begin;
-}
-
-msghdr RAIIMsghdr::get() {
-    msghdr ret;
-    std::memset(&ret, 0, sizeof(ret));
-    ret.msg_iov = scattergather_array.data();
-    ret.msg_iovlen = scattergather_array.size();
-    return ret;
-}
-}
 
 RadioSender::RadioSender(unsigned port, std::optional<std::string> multicastAddr, unsigned timeout) :
     timeout(timeout), isMulticasted(multicastAddr) {
@@ -65,31 +26,20 @@ RadioSender::~RadioSender() {
         sock.setSockOpt(IPPROTO_IP, IP_DROP_MEMBERSHIP, ip_mreq_);
 }
 
-void RadioSender::sendData(MsgType type, std::vector<uint8_t> const& data, std::optional<sockaddr_in> address) {
-    sendData(type, data.data(), data.data() + data.size(), address);
-}
 
-void RadioSender::sendData(MsgType type, uint8_t const* begin, uint8_t const* end, std::optional<sockaddr_in> address) {
-    RAIIMsghdr m(begin, end, type);
+void RadioSender::sendData(MessageType type, std::vector<uint8_t>& buffer, std::optional<sockaddr_in> address) {
+    Message message(sock, buffer);
     if (address)
-        sendToAClient(m.get(), address.value());
+        sendToAClient(message, type, address.value());
     else
-        sendToAllClients(m.get());
+        sendToAllClients(message, type);
 }
 
-void RadioSender::sendToAClient(msghdr msghdr, sockaddr_in address) {
-    msghdr.msg_name = reinterpret_cast<void*>(&address);
-    msghdr.msg_namelen = sizeof(address);
-    ssize_t r = -1;
-    errno = EAGAIN;
-    while (r < 0 && errno == EAGAIN) {
-        r = sendmsg(sock, &msghdr, 0);
-    }
-    if (r < 0)
-        syserr("sendmsg");
+void RadioSender::sendToAClient(Message& message, MessageType type, sockaddr_in address) {
+    message.sendMessage(type, address);
 }
 
-void RadioSender::sendToAllClients(msghdr msghdr) {
+void RadioSender::sendToAllClients(Message& message, MessageType type) {
     std::lock_guard<std::mutex> lock(clientsMutex);
     auto clients_copy = clients;
     for (auto& client : clients) {
@@ -98,7 +48,8 @@ void RadioSender::sendToAllClients(msghdr msghdr) {
         if (diff.count() > timeout) {
             clients_copy.erase(client.first);
         } else {
-            sendToAClient(msghdr, client.first);
+            auto address = client.first;
+            message.sendMessage(type, address);
         }
     }
     clients.swap(clients_copy);
@@ -140,10 +91,10 @@ void RadioSender::controller(RadioReader& reader) {
         type = ntohs(type);
         if (type == DISCOVER) {
             auto desc = reader.description();
-            auto begin = reinterpret_cast<const uint8_t*>(desc.c_str());
-            auto end = begin + desc.length();
+            std::vector<uint8_t> buffer(desc.length());
+            std::copy(desc.begin(), desc.end(), buffer.begin());
             try {
-                sendData(IAM, begin, end, clientAddress);
+                sendData(IAM, buffer, clientAddress);
             } catch (std::system_error& exc) {
                 std::cerr << exc;
             }

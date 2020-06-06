@@ -18,7 +18,7 @@ public:
     RadioReader(std::string const& host, std::string const& port, sockaddr_in const& address, std::string& resource, unsigned timeout, bool metadata);
     bool init();
     std::string description();
-    std::pair<ChunkType, const std::vector<uint8_t>&> readChunk();
+    std::pair<ChunkType, std::vector<uint8_t>&> readChunk();
 private:
     static constexpr size_t maxPacketSize = 0xffff - 4 /*SIKRadio*/ - 8 /*UDP*/ - 20 /*IP*/;
     TcpSocket fd;
