@@ -1,3 +1,6 @@
+#include <iostream>
+#include <iomanip>
+#include <system_error>
 #include <thread>
 #include <unistd.h>
 #include <poll.h>
@@ -28,7 +31,8 @@ void ProxyReceiver::receivePipeMessage(PipeMessage& msg) {
 
 void ProxyReceiver::loop() {
     PipeMessage msg = Command::NoAddress;
-    std::vector<uint8_t> data;
+    std::vector<uint8_t> data(1);
+    data.resize(0);
     Message message(sockfd, data);
     pollfd fds[2];
     pollfd& pipeEv = fds[0];
@@ -69,7 +73,8 @@ void ProxyReceiver::loop() {
             MessageType type;
             try {
                 message.recvMessage(type, address);
-            } catch (...) {
+            } catch (std::system_error& exc) {
+                std::cerr << exc;
                 continue; // drop packet
             }
             if (currentAddress && (address == currentAddress.value()))
