@@ -1,7 +1,9 @@
 #include "radioreader.h"
+#include <cstring>
 #include "../common/error.h"
 #include <signal.h>
 #include <sstream>
+#include <iostream>
 #include <stdexcept>
 
 static volatile sig_atomic_t interrupt_occured = 0;
